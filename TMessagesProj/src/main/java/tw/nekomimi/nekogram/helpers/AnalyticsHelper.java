@@ -6,6 +6,8 @@ import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.BuildVars;
 
 
+import com.google.firebase.crashlytics.FirebaseCrashlytics;
+
 import io.sentry.Sentry;
 import io.sentry.SentryLevel;
 import io.sentry.android.core.SentryAndroid;
@@ -14,8 +16,10 @@ import xyz.nextalone.nagram.NkmrConfig;
 public class AnalyticsHelper {
     public static String DSN = "https://f7a6e4cc5c2b0a3aded76128a06d34e4@o416616.ingest.us.sentry.io/4507780440915968";
     public static boolean loaded = false;
+    public static final boolean CRASHLYTICS_DEFAULT = true;
 
     public static void start(Application application) {
+        applyCrashlyticsStatus();
         if (!getSentryStatus(application)) {
             return;
         }
@@ -51,6 +55,20 @@ public class AnalyticsHelper {
         if (loaded) {
             Sentry.captureException(e);
         }
+    }
+
+    // Crashlytics auto-collection is disabled in the manifest so nothing is sent
+    // before the user's choice is known; apply that choice on every start.
+    public static void applyCrashlyticsStatus() {
+        try {
+            FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(getCrashlyticsStatus());
+        } catch (Throwable ignored) {
+            // FirebaseApp not initialised (e.g. no google-services config)
+        }
+    }
+
+    public static boolean getCrashlyticsStatus() {
+        return NkmrConfig.preferences.getBoolean("FirebaseCrashlytics", CRASHLYTICS_DEFAULT);
     }
 
     public static boolean getSentryStatus(Application application) {

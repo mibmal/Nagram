@@ -685,6 +685,12 @@ object NaConfig {
             ConfigItem.configTypeBool,
             true
         )
+    val firebaseCrashlytics =
+        addConfig(
+            "FirebaseCrashlytics",
+            ConfigItem.configTypeBool,
+            tw.nekomimi.nekogram.helpers.AnalyticsHelper.CRASHLYTICS_DEFAULT
+        )
     val regexFiltersEnabled =
         addConfig(
             "RegexFilters",
