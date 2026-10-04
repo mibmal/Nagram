@@ -5,7 +5,7 @@ name: LibreTranslate test build
 # xyz.nextalone.nagram.libretest so it installs alongside a regular Nagram.
 on:
   push:
-    branches: [test/libretranslate]
+    branches: [test/libretranslate, privacy]
   workflow_dispatch:
 
 jobs:

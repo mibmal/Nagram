@@ -128,7 +128,7 @@ public class NekoConfig {
     public static ConfigItem cachePath = addConfig("cache_path", configTypeString, "");
     public static ConfigItem customSavePath = addConfig("customSavePath", configTypeString, "Nagram");
 
-    public static ConfigItem translationProvider = addConfig("translationProvider", configTypeInt, 1);
+    public static ConfigItem translationProvider = addConfig("translationProvider", configTypeInt, 13); // LibreTranslate
     public static ConfigItem translateToLang = addConfig("TransToLang", configTypeString, ""); // "" -> translate to current language (MessageTrans.kt & Translator.kt)
     public static ConfigItem translateInputLang = addConfig("TransInputToLang", configTypeString, "en");
     public static ConfigItem useTelegramTranslateInChat = addConfig("useTelegramTranslateInChat", configTypeBool, false);
@@ -196,7 +196,7 @@ public class NekoConfig {
     public static ConfigItem customAudioBitrate = addConfig("customAudioBitrate", configTypeInt, 32);
     public static ConfigItem disableGroupVoipAudioProcessing = addConfig("disableGroupVoipAudioProcessing", configTypeBool, false);
     public static ConfigItem enhancedFileLoader = addConfig("enhancedFileLoader", configTypeBool, false);
-    public static ConfigItem useOSMDroidMap = addConfig("useOSMDroidMap", configTypeBool, false);
+    public static ConfigItem useOSMDroidMap = addConfig("useOSMDroidMap", configTypeBool, true);
     public static ConfigItem mapDriftingFixForGoogleMaps = addConfig("mapDriftingFixForGoogleMaps", configTypeBool, true);
 
     // priv branch changes

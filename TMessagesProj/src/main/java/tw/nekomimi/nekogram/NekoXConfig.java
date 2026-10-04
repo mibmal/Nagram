@@ -76,7 +76,7 @@ public class NekoXConfig {
 
     public static boolean disableFlagSecure = NaConfig.INSTANCE.getDisableFlagSecure().Bool();
 
-    public static int autoUpdateReleaseChannel = preferences.getInt("autoUpdateReleaseChannel", 2);
+    public static int autoUpdateReleaseChannel = preferences.getInt("autoUpdateReleaseChannel", 0); // updates come from our own builds
 //    public static String ignoredUpdateTag = preferences.getString("ignoredUpdateTag", "");
 //    public static long nextUpdateCheck = preferences.getLong("nextUpdateCheckTimestamp", 0);
 

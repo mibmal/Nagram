@@ -16,7 +16,7 @@ import xyz.nextalone.nagram.NkmrConfig;
 public class AnalyticsHelper {
     public static String DSN = "https://f7a6e4cc5c2b0a3aded76128a06d34e4@o416616.ingest.us.sentry.io/4507780440915968";
     public static boolean loaded = false;
-    public static final boolean CRASHLYTICS_DEFAULT = true;
+    public static final boolean CRASHLYTICS_DEFAULT = false;
 
     public static void start(Application application) {
         applyCrashlyticsStatus();
@@ -72,6 +72,6 @@ public class AnalyticsHelper {
     }
 
     public static boolean getSentryStatus(Application application) {
-        return NkmrConfig.preferences.getBoolean("SentryAnalytics", true);
+        return NkmrConfig.preferences.getBoolean("SentryAnalytics", false);
     }
 }

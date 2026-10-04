@@ -255,7 +255,7 @@ public class NekoDebugSettingsActivity extends BaseNekoXSettingsActivity {
 
     private static class AutoUpdateChannelConfigItem extends ConfigItem {
         AutoUpdateChannelConfigItem() {
-            super("AutoCheckUpdateSwitch", configTypeInt, 2);
+            super("AutoCheckUpdateSwitch", configTypeInt, 0);
             value = NekoXConfig.autoUpdateReleaseChannel;
         }
 

@@ -429,7 +429,7 @@ object NaConfig {
         addConfig(
             "DoNotShareMyPhoneNumber",
             ConfigItem.configTypeBool,
-            false
+            true
         )
     val defaultDeleteMenu =
         addConfig(
@@ -617,7 +617,7 @@ object NaConfig {
         addConfig(
             "PushServiceType",
             ConfigItem.configTypeInt,
-            1
+            2
         )
     val pushServiceTypeInAppDialog =
         addConfig(
@@ -629,7 +629,7 @@ object NaConfig {
         addConfig(
             "PushServiceTypeUnifiedGateway",
             ConfigItem.configTypeString,
-            "https://p2p.hoyolab.pp.ua/"
+            "https://push.maley.me/"
         )
     val pushServiceTypeUnifiedSimple =
         addConfig(
@@ -677,13 +677,13 @@ object NaConfig {
         addConfig(
             "DisableAutoWebLogin",
             ConfigItem.configTypeBool,
-            false
+            true
         )
     val sentryAnalytics =
         addConfig(
             "SentryAnalytics",
             ConfigItem.configTypeBool,
-            true
+            false
         )
     val firebaseCrashlytics =
         addConfig(
@@ -1071,7 +1071,7 @@ object NaConfig {
         addConfig(
             "LibreTranslateApi",
             ConfigItem.configTypeString,
-            ""
+            "https://translate-lan.maley.me"
         )
     val libreTranslateApiKey =
         addConfig(
