@@ -1061,6 +1061,18 @@ object NaConfig {
             ConfigItem.configTypeString,
             ""
         )
+    val libreTranslateApi =
+        addConfig(
+            "LibreTranslateApi",
+            ConfigItem.configTypeString,
+            ""
+        )
+    val libreTranslateApiKey =
+        addConfig(
+            "LibreTranslateApiKey",
+            ConfigItem.configTypeString,
+            ""
+        )
     val deepLFormality =
         addConfig(
             "DeepLFormality",

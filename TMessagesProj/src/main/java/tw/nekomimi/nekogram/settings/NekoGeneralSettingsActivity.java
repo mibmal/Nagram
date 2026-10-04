@@ -95,6 +95,10 @@ public class NekoGeneralSettingsActivity extends BaseNekoXSettingsActivity {
         customDialog_BottomInputString(position, NekoConfig.googleCloudTranslateKey, LocaleController.getString("GoogleCloudTransKeyNotice"), "Key");
     }, LocaleController.getString("UsernameEmpty", R.string.UsernameEmpty)));
     private final AbstractConfigCell deepLxCustomApiRow = cellGroup.appendCell(new ConfigCellTextInput(null, NaConfig.INSTANCE.getDeepLxCustomApi(), "", null));
+    private final AbstractConfigCell libreTranslateApiRow = cellGroup.appendCell(new ConfigCellTextInput(null, NaConfig.INSTANCE.getLibreTranslateApi(), "", null));
+    private final AbstractConfigCell libreTranslateApiKeyRow = cellGroup.appendCell(new ConfigCellTextDetail(NaConfig.INSTANCE.getLibreTranslateApiKey(), (view, position) -> {
+        customDialog_BottomInputString(position, NaConfig.INSTANCE.getLibreTranslateApiKey(), LocaleController.getString(R.string.LibreTranslateApiKeyNotice), "Key");
+    }, LocaleController.getString("UsernameEmpty", R.string.UsernameEmpty)));
     private final AbstractConfigCell deepLApiKeyRow = cellGroup.appendCell(new ConfigCellTextDetail(NaConfig.INSTANCE.getDeepLApiKey(), (view, position) -> {
         customDialog_BottomInputString(position, NaConfig.INSTANCE.getDeepLApiKey(), LocaleController.getString(R.string.DeepLApiKeyNotice), "Key");
     }, LocaleController.getString("UsernameEmpty", R.string.UsernameEmpty)));
@@ -429,6 +433,7 @@ private final AbstractConfigCell defaultHlsVideoQualityRow = cellGroup.appendCel
                             LocaleController.getString(R.string.ProviderLLMTranslate),
                             LocaleController.getString(R.string.ProviderDeepLTranslate),
                             LocaleController.getString(R.string.ProviderDeepLFreeTranslate),
+                            LocaleController.getString(R.string.ProviderLibreTranslate),
                     }, (i, __) -> {
                         NekoConfig.translationProvider.setConfigInt(i + 1);
                         updateRows();
@@ -751,6 +756,9 @@ private final AbstractConfigCell defaultHlsVideoQualityRow = cellGroup.appendCel
                                 case Translator.providerDeepLFree:
                                     value = LocaleController.getString(R.string.ProviderDeepLFreeTranslate);
                                     break;
+                                case Translator.providerLibreTranslate:
+                                    value = LocaleController.getString(R.string.ProviderLibreTranslate);
+                                    break;
                                 default:
                                     value = "Unknown";
                             }
@@ -813,6 +821,7 @@ private final AbstractConfigCell defaultHlsVideoQualityRow = cellGroup.appendCel
         boolean isDeepLOfficialProvider = NekoConfig.translationProvider.Int() == Translator.providerDeepLOfficial;
         boolean isDeepLFreeProvider = NekoConfig.translationProvider.Int() == Translator.providerDeepLFree;
         boolean isGoogleCloudProvider = NekoConfig.translationProvider.Int() == Translator.providerGoogle;
+        boolean isLibreTranslateProvider = NekoConfig.translationProvider.Int() == Translator.providerLibreTranslate;
 
         cellGroup.rows.remove(llmSettingsRow);
         cellGroup.rows.remove(deepLxCustomApiRow);
@@ -820,6 +829,8 @@ private final AbstractConfigCell defaultHlsVideoQualityRow = cellGroup.appendCel
         cellGroup.rows.remove(deepLFreeApiKeyRow);
         cellGroup.rows.remove(deepLFormalityRow);
         cellGroup.rows.remove(googleCloudTranslateKeyRow);
+        cellGroup.rows.remove(libreTranslateApiRow);
+        cellGroup.rows.remove(libreTranslateApiKeyRow);
 
         if (isLLMProvider) {
             int insertIndex = cellGroup.rows.indexOf(translateInputToLangRow) + 1;
@@ -839,6 +850,10 @@ private final AbstractConfigCell defaultHlsVideoQualityRow = cellGroup.appendCel
         } else if (isGoogleCloudProvider) {
             int insertIndex = cellGroup.rows.indexOf(translateInputToLangRow) + 1;
             cellGroup.rows.add(insertIndex, googleCloudTranslateKeyRow);
+        } else if (isLibreTranslateProvider) {
+            int insertIndex = cellGroup.rows.indexOf(translateInputToLangRow) + 1;
+            cellGroup.rows.add(insertIndex, libreTranslateApiRow);
+            cellGroup.rows.add(insertIndex + 1, libreTranslateApiKeyRow);
         }
 
         addRowsToMap();
