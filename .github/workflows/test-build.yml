@@ -127,7 +127,7 @@ jobs:
       - name: Checkout Library
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          git submodule update
+          git submodule update --init
       - name: FFmpeg Cache
         uses: actions/cache@v6
         if: steps.cache.outputs.cache-hit != 'true'
