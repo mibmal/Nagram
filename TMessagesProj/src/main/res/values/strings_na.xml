@@ -390,4 +390,5 @@
     <string name="TranslateImageNoText">No text found in this image</string>
     <string name="TranslateImageOriginal">Original</string>
     <string name="TranslateImageTranslated">Translated</string>
+    <string name="TranslateImageUnsupported">Translate image needs Android 7.0 or newer</string>
 </resources>

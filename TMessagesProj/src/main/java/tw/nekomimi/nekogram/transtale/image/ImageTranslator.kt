@@ -6,6 +6,7 @@ import android.app.Dialog
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -32,6 +33,7 @@ import org.telegram.messenger.LocaleController
 import org.telegram.messenger.MediaController
 import org.telegram.messenger.R
 import tw.nekomimi.nekogram.NekoConfig
+import tw.nekomimi.nekogram.utils.AlertUtil
 import tw.nekomimi.nekogram.transtale.Translator
 import tw.nekomimi.nekogram.transtale.code2Locale
 import java.io.File
@@ -50,6 +52,13 @@ object ImageTranslator {
 
     @JvmStatic
     fun show(activity: Activity, bitmap: Bitmap) {
+        // ONNX Runtime (PaddleOCR) needs Android 7.0+; the app still supports
+        // 5.0, so the library's minSdk is overridden in the manifest and the
+        // feature is guarded here.
+        if (Build.VERSION.SDK_INT < 24) {
+            AlertUtil.showToast(LocaleController.getString(R.string.TranslateImageUnsupported))
+            return
+        }
         Screen(activity, bitmap).show()
     }
 
