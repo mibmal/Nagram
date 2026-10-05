@@ -347,6 +347,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import kotlin.Unit;
+import tw.nekomimi.nekogram.transtale.image.ImageTranslator;
 import tw.nekomimi.nekogram.NekoConfig;
 import tw.nekomimi.nekogram.NekoXConfig;
 import tw.nekomimi.nekogram.transtale.TranslateDb;
@@ -2238,6 +2239,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     private final static int gallery_menu_send_noquote = 201;
     private final static int gallery_menu_copy = 202;
     private final static int gallery_menu_set_photo = 203;
+    private final static int gallery_menu_translate_image = 204;
 
     private static DecelerateInterpolator decelerateInterpolator;
     private static Paint progressPaint;
@@ -4668,6 +4670,45 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         }
     }
 
+
+    /**
+     * The picture currently shown (or the current video frame), loaded from
+     * the downloaded file; null (with the usual alert) if not downloaded yet.
+     * Same lookup as the QR scanner uses.
+     */
+    private Bitmap getCurrentMediaBitmap() {
+        File f = null;
+        final boolean isVideo;
+        if (currentMessageObject != null) {
+            if (currentMessageObject.messageOwner.media instanceof TLRPC.TL_messageMediaWebPage && currentMessageObject.messageOwner.media.webpage != null && currentMessageObject.messageOwner.media.webpage.document == null) {
+                TLObject fileLocation = getFileLocation(currentIndex, null);
+                f = FileLoader.getInstance(currentAccount).getPathToAttach(fileLocation, true);
+            } else {
+                f = FileLoader.getInstance(currentAccount).getPathToMessage(currentMessageObject.messageOwner);
+            }
+            isVideo = currentMessageObject.isVideo();
+        } else if (currentFileLocationVideo != null) {
+            f = FileLoader.getInstance(currentAccount).getPathToAttach(getFileLocation(currentFileLocationVideo), getFileLocationExt(currentFileLocationVideo), avatarsDialogId != 0 || isEvent);
+            isVideo = false;
+        } else if (pageBlocksAdapter != null) {
+            f = pageBlocksAdapter.getFile(currentIndex);
+            isVideo = pageBlocksAdapter.isVideo(currentIndex);
+        } else {
+            isVideo = false;
+        }
+        try {
+            if (isVideo) {
+                return videoTextureView != null ? videoTextureView.getBitmap() : null;
+            } else if (f != null && f.exists()) {
+                return ImageLoader.loadBitmap(f.getPath(), null, -1f, -1f, false);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        }
+        showDownloadAlert();
+        return null;
+    }
     private void showDownloadAlert() {
         AlertDialog.Builder builder = new AlertDialog.Builder(parentActivity, resourcesProvider);
         builder.setTitle(getString(R.string.NekoX));
@@ -5222,6 +5263,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                         ProxyUtil.tryReadQR(parentActivity, bitmap);
                     } catch (Exception ignored) {
                         AlertUtil.showToast(getString("NoQrFound", R.string.NoQrFound));
+                    }
+                } else if (id == gallery_menu_translate_image) {
+                    Bitmap bitmap = getCurrentMediaBitmap();
+                    if (bitmap != null) {
+                        ImageTranslator.show(parentActivity, bitmap);
                     }
                 } else if (id == gallery_menu_chromecast) {
                     ChromecastController.getInstance().setCurrentMediaAndCastIfNeeded(getCurrentChromecastMedia());
@@ -6104,6 +6150,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         menuItem.addSubItem(gallery_menu_copy, R.drawable.msg_copy, getString(R.string.CopyPhoto)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.addSubItem(gallery_menu_set_photo, R.drawable.msg_openprofile, getString(R.string.SetProfilePhoto)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.addSubItem(gallery_menu_scan, R.drawable.msg_qrcode, getString(R.string.ScanQRCode)).setColors(0xfffafafa, 0xfffafafa);
+        menuItem.addSubItem(gallery_menu_translate_image, R.drawable.msg_translate, getString(R.string.TranslateImage)).setColors(0xfffafafa, 0xfffafafa);
 
         menuItem.addSubItem(gallery_menu_set_as_main, R.drawable.msg_openprofile, getString(R.string.SetAsMain)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.addSubItem(gallery_menu_translate, R.drawable.msg_translate, getString(R.string.TranslateMessage)).setColors(0xfffafafa, 0xfffafafa);
@@ -15009,6 +15056,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 menuItem.hideSubItem(gallery_menu_set_photo);
                 menuItem.hideSubItem(gallery_menu_share);
                 menuItem.hideSubItem(gallery_menu_scan);
+                menuItem.hideSubItem(gallery_menu_translate_image);
                 setItemVisible(editItem, false, animated);
                 if (!newMessageObject.canDeleteMessage(parentChatActivity != null && parentChatActivity.isInScheduleMode(), null)) {
                     menuItem.hideSubItem(gallery_menu_delete);
@@ -15132,6 +15180,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 menuItem.hideSubItem(gallery_menu_copy);
                 menuItem.hideSubItem(gallery_menu_set_photo);
                 menuItem.hideSubItem(gallery_menu_scan);
+                menuItem.hideSubItem(gallery_menu_translate_image);
                 menuItem.hideSubItem(gallery_menu_share);
                 setItemVisible(editItem, false, animated);
             } else {
@@ -15140,6 +15189,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 galleryGap.setVisibility(View.VISIBLE);
                 menuItem.showSubItem(gallery_menu_share);
                 menuItem.showSubItem(gallery_menu_scan);
+                menuItem.showSubItem(gallery_menu_translate_image);
             }
             groupedPhotosListView.fillList();
         } else if (!secureDocuments.isEmpty()) {
@@ -15150,6 +15200,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             menuItem.hideSubItem(gallery_menu_copy);
             menuItem.hideSubItem(gallery_menu_set_photo);
             menuItem.hideSubItem(gallery_menu_scan);
+            menuItem.hideSubItem(gallery_menu_translate_image);
             menuItem.hideSubItem(gallery_menu_translate);
             menuItem.hideSubItem(gallery_menu_hide_translation);
             if (countView != null) {
@@ -15246,6 +15297,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 menuItem.hideSubItem(gallery_menu_set_photo);
             }
             menuItem.showSubItem(gallery_menu_scan);
+            menuItem.showSubItem(gallery_menu_translate_image);
             allowShare = !noforwardsOverrided;
             menuItem.showSubItem(gallery_menu_share);
             menuItem.checkHideMenuItem();
@@ -16080,6 +16132,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             if (sharedMediaType == MediaDataController.MEDIA_FILE) {
                 if (canZoom = newMessageObject.canPreviewDocument()) {
                     menuItem.showSubItem(gallery_menu_scan);
+                    menuItem.showSubItem(gallery_menu_translate_image);
                     // TODO: NekoX Fix allowShare
                     if (allowShare) {
                         galleryButton.setVisibility(View.VISIBLE);
@@ -16093,6 +16146,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     galleryButton.setVisibility(View.GONE);
                     galleryGap.setVisibility(View.GONE);
                     menuItem.hideSubItem(gallery_menu_scan);
+                    menuItem.hideSubItem(gallery_menu_translate_image);
                     setDoubleTapEnabled(false);
                 }
                 if (canZoom && allowShare) {

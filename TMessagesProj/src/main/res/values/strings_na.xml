@@ -384,4 +384,10 @@
     <string name="SwitchStyleTelegram">Telegram</string>
     <string name="SwitchStyleModern">Modern</string>
     <string name="DisableChatListSwipeGesture">Disable chat list swipe gesture</string>
+    <string name="TranslateImage">Translate image</string>
+    <string name="TranslateImageReading">Reading text…</string>
+    <string name="TranslateImageTranslating">Translating…</string>
+    <string name="TranslateImageNoText">No text found in this image</string>
+    <string name="TranslateImageOriginal">Original</string>
+    <string name="TranslateImageTranslated">Translated</string>
 </resources>
