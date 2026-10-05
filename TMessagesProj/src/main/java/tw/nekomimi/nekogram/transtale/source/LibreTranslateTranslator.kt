@@ -5,6 +5,8 @@ import io.ktor.http.ContentType
 import org.json.JSONObject
 import org.telegram.messenger.LocaleController
 import org.telegram.messenger.R
+import tw.nekomimi.nekogram.cc.CCConverter
+import tw.nekomimi.nekogram.cc.CCTarget
 import tw.nekomimi.nekogram.transtale.Translator
 import xyz.nextalone.nagram.NaConfig
 import xyz.nextalone.nagram.network.NetworkRequestBuilder
@@ -35,6 +37,25 @@ object LibreTranslateTranslator : Translator {
         return if (base.endsWith("/translate")) base else "$base/translate"
     }
 
+    private val HAN = Regex("\\p{IsHan}")
+
+    /**
+     * LibreTranslate ships Traditional and Simplified Chinese as separate
+     * models, but its "auto" detection reports plain Chinese, so Traditional
+     * text (Hong Kong / Taiwan) gets the Simplified model and noticeably worse
+     * output. Decide locally instead: if converting to Simplified changes the
+     * text, it was written in Traditional characters.
+     */
+    @JvmStatic
+    fun resolveSource(from: String, query: String): String {
+        if (from != "auto" || !HAN.containsMatchIn(query)) return from
+        val han = HAN.findAll(query).count()
+        val nonSpace = query.count { !it.isWhitespace() }
+        if (han * 3 < nonSpace) return from // mostly not Chinese: let LibreTranslate detect
+        val traditional = runCatching { CCConverter.get(CCTarget.SC).convert(query) != query }.getOrDefault(false)
+        return if (traditional) "zh-Hant" else "zh-Hans"
+    }
+
     override suspend fun doTranslate(from: String, to: String, query: String): String {
         val api = NaConfig.libreTranslateApi.String()
         if (TextUtils.isEmpty(api)) error("Missing LibreTranslate API")
@@ -44,7 +65,7 @@ object LibreTranslateTranslator : Translator {
             contentType(ContentType.Application.Json)
             setBody(JSONObject().apply {
                 put("q", query)
-                put("source", from)
+                put("source", resolveSource(from, query))
                 put("target", to)
                 put("format", "text")
                 if (!TextUtils.isEmpty(apiKey)) put("api_key", apiKey)
