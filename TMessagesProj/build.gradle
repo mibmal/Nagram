@@ -387,8 +387,9 @@ dependencies {
     implementation "androidx.browser:browser:1.8.0"
     implementation "androidx.viewpager:viewpager:1.0.0"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
-    // On-device OCR for "Translate image" (Apache-2.0). Models: assets/tessdata.
-    implementation 'com.github.adaptech-cz.Tesseract4Android:tesseract4android:4.8.0'
+    // On-device OCR for "Translate image": PaddleOCR PP-OCRv5 models
+    // (assets/paddleocr) on ONNX Runtime (MIT).
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.30.0'
     // map
     implementation "org.maplibre.gl:android-sdk:11.13.5"
 

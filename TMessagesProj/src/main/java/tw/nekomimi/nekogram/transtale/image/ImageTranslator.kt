@@ -38,7 +38,7 @@ import java.io.File
 
 /**
  * "Translate image" in the photo viewer: read the text on the phone
- * (ImageOcr), translate each text block with the user's chosen translation
+ * (ImageOcr: PaddleOCR on ONNX Runtime), translate each text block with the user's chosen translation
  * provider, and show the picture with the translations painted in place
  * (ImagePainter), plus the text pairs below.
  *

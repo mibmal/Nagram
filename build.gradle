@@ -48,12 +48,5 @@ allprojects {
         // The order in which you list these repositories matter.
         mavenCentral()
         google()
-        // Tesseract4Android (on-device OCR for "Translate image") is only
-        // published on JitPack. exclusiveContent: nothing else may resolve
-        // from there.
-        exclusiveContent {
-            forRepository { maven { url "https://jitpack.io" } }
-            filter { includeGroup "com.github.adaptech-cz.Tesseract4Android" }
-        }
     }
 }
