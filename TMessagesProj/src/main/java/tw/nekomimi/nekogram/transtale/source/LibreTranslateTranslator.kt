@@ -2,6 +2,8 @@ package tw.nekomimi.nekogram.transtale.source
 
 import android.text.TextUtils
 import io.ktor.http.ContentType
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.json.JSONObject
 import org.telegram.messenger.LocaleController
 import org.telegram.messenger.R
@@ -37,6 +39,17 @@ object LibreTranslateTranslator : Translator {
         return if (base.endsWith("/translate")) base else "$base/translate"
     }
 
+    /**
+     * A self-hosted instance is usually a single small CPU box. Auto-translate
+     * in a busy group fires one request per visible message at once; they all
+     * queue on the server, run past the HTTP timeout, and the server keeps
+     * working on the abandoned ones. Queue here instead: the timeout starts
+     * only when a request is sent, and a message scrolled away before its turn
+     * is cancelled without ever reaching the server.
+     */
+    private val inFlight = Semaphore(MAX_CONCURRENT_REQUESTS)
+    private const val MAX_CONCURRENT_REQUESTS = 2
+
     private val HAN = Regex("\\p{IsHan}")
 
     /**
@@ -61,7 +74,7 @@ object LibreTranslateTranslator : Translator {
         if (TextUtils.isEmpty(api)) error("Missing LibreTranslate API")
         val apiKey = NaConfig.libreTranslateApiKey.String()
 
-        val response = NetworkRequestBuilder.post(buildTranslateUrl(api!!)) {
+        val response = inFlight.withPermit { NetworkRequestBuilder.post(buildTranslateUrl(api!!)) {
             contentType(ContentType.Application.Json)
             setBody(JSONObject().apply {
                 put("q", query)
@@ -70,7 +83,7 @@ object LibreTranslateTranslator : Translator {
                 put("format", "text")
                 if (!TextUtils.isEmpty(apiKey)) put("api_key", apiKey)
             }.toString())
-        }.execute()
+        }.execute() }
 
         val json = runCatching { JSONObject(response.body) }.getOrNull()
         if (response.statusCode != 200 || json == null || !json.has("translatedText")) {
