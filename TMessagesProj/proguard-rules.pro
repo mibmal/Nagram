@@ -175,3 +175,10 @@
 -dontwarn javax.naming.directory.DirContext
 -dontwarn javax.naming.directory.InitialDirContext
 -dontwarn org.xbill.DNS.spi.DnsjavaInetAddressResolverProvider
+
+# ONNX Runtime (Translate image): its JNI code looks up these classes,
+# constructors and fields by name (e.g. TensorInfo.<init>, NodeInfo), so R8
+# must neither strip nor rename them -- otherwise reading an image aborts
+# with "JNI DETECTED ERROR IN APPLICATION: mid == null".
+-keep class ai.onnxruntime.** { *; }
+-keepclassmembers class ai.onnxruntime.** { *; }
