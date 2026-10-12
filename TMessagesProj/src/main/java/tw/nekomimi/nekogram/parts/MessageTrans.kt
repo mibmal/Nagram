@@ -436,8 +436,14 @@ private fun ChatActivity.reportError(
     cancel: AtomicBoolean,
     status: AlertDialog?
 ) {
+    // No progress dialog means this is a background auto-translation:
+    // don't interrupt reading with an error popup, just keep the original text.
+    if (status == null) {
+        FileLog.e("auto translate failed: ${error.message ?: error.javaClass.simpleName}")
+        return
+    }
     if (cancel.get()) return
-    status?.uDismiss()
+    status.uDismiss()
     val activity = parentActivity ?: return
     AlertUtil.showTransFailedDialog(
         activity,
