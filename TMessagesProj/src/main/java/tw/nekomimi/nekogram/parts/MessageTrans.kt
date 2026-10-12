@@ -1,6 +1,7 @@
 package tw.nekomimi.nekogram.parts
 
 import kotlinx.coroutines.*
+import org.telegram.messenger.FileLog
 import org.telegram.messenger.MessageObject
 import org.telegram.messenger.TranslateController
 import org.telegram.tgnet.TLRPC
@@ -168,6 +169,28 @@ fun ChatActivity.translateMessages(
     messages.forEach { it.translating = false }
 }
 
+// Retries transient failures (e.g. "HTTP 0" network drops) with the same provider.
+private suspend fun translateWithRetry(
+    target: Locale,
+    text: String,
+    context: List<String>,
+    cancel: AtomicBoolean
+): String {
+    var attempt = 0
+    while (true) {
+        try {
+            return Translator.translate(target, text, context)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: UnsupportedOperationException) {
+            throw e
+        } catch (e: Exception) {
+            if (++attempt >= 3 || cancel.get()) throw e
+            delay(1000L * attempt)
+        }
+    }
+}
+
 private suspend fun ChatActivity.translateMessage(
     message: MessageObject,
     target: Locale,
@@ -196,7 +219,7 @@ private suspend fun ChatActivity.translatePoll(
     if (question == null) {
         if (cancel.get()) return false
         question = runCatching {
-            Translator.translate(target, pool.question.text, context)
+            translateWithRetry(target, pool.question.text, context, cancel)
         }.getOrElse {
             handleError(target, it, cancel, status)
             return false
@@ -214,7 +237,7 @@ private suspend fun ChatActivity.translatePoll(
         if (answer == null) {
             if (cancel.get()) return false
             answer = runCatching {
-                Translator.translate(target, it.text.text, context)
+                translateWithRetry(target, it.text.text, context, cancel)
             }.getOrElse { e ->
                 handleError(target, e, cancel, status)
                 return false
@@ -231,7 +254,7 @@ private suspend fun ChatActivity.translatePoll(
         if (translatedSolution == null) {
             if (cancel.get()) return false
             translatedSolution = runCatching {
-                Translator.translate(target, solution.text, context)
+                translateWithRetry(target, solution.text, context, cancel)
             }.getOrElse {
                 handleError(target, it, cancel, status)
                 return false
@@ -262,7 +285,7 @@ private suspend fun ChatActivity.translateText(
     var text = if (context.isEmpty()) db.query(originalMessage)?.takeIf { it.isNotBlank() } else null
     if (text == null) {
         text = runCatching {
-            Translator.translate(target, originalMessage, context)
+            translateWithRetry(target, originalMessage, context, cancel)
         }.getOrElse {
             handleError(target, it, cancel, status)
             message.messageOwner.translatedMessage = originalMessage
@@ -288,7 +311,13 @@ private fun ChatActivity.handleError(
     cancel: AtomicBoolean,
     status: AlertDialog?
 ) {
-    status?.uDismiss()
+    // No progress dialog means this is a background auto-translation:
+    // don't interrupt reading with an error popup, just keep the original text.
+    if (status == null) {
+        FileLog.e("auto translate failed: ${error.message ?: error.javaClass.simpleName}")
+        return
+    }
+    status.uDismiss()
     if (parentActivity != null && !cancel.get()) {
         AlertUtil.showTransFailedDialog(
             parentActivity,
