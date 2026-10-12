@@ -1,6 +1,7 @@
 package tw.nekomimi.nekogram.parts
 
 import kotlinx.coroutines.*
+import org.telegram.messenger.FileLog
 import org.telegram.messenger.MessageObject
 import org.telegram.messenger.TranslateController
 import org.telegram.tgnet.TLRPC
@@ -288,7 +289,13 @@ private fun ChatActivity.handleError(
     cancel: AtomicBoolean,
     status: AlertDialog?
 ) {
-    status?.uDismiss()
+    // No progress dialog means this is a background auto-translation:
+    // don't interrupt reading with an error popup, just keep the original text.
+    if (status == null) {
+        FileLog.e("auto translate failed: ${error.message ?: error.javaClass.simpleName}")
+        return
+    }
+    status.uDismiss()
     if (parentActivity != null && !cancel.get()) {
         AlertUtil.showTransFailedDialog(
             parentActivity,
