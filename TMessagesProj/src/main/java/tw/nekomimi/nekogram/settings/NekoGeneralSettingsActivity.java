@@ -46,6 +46,7 @@ import org.telegram.ui.Cells.ShadowSectionCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextDetailSettingsCell;
 import org.telegram.ui.Cells.TextSettingsCell;
+import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.SeekBarView;
@@ -301,6 +302,12 @@ private final AbstractConfigCell defaultHlsVideoQualityRow = cellGroup.appendCel
             LocaleController.formatPluralString("Minutes", 15),
             LocaleController.formatPluralString("Minutes", 60),
     }, null));
+    private final AbstractConfigCell keepDeletedMessagesRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getKeepDeletedMessages(), LocaleController.getString(R.string.KeepDeletedMessagesAbout)));
+    private final AbstractConfigCell keepEditHistoryRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getKeepEditHistory(), LocaleController.getString(R.string.KeepEditHistoryAbout)));
+    private final AbstractConfigCell clearMessageHistoryRow = cellGroup.appendCell(new ConfigCellText("ClearKeptMessageHistory", () -> {
+        xyz.nextalone.nagram.helper.MessageHistoryStore.clearAll(currentAccount);
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.done, LocaleController.getString(R.string.ClearKeptMessageHistoryDone)).show();
+    }));
     private final AbstractConfigCell divider6 = cellGroup.appendCell(new ConfigCellDivider());
 
     private final AbstractConfigCell header7 = cellGroup.appendCell(new ConfigCellHeader(LocaleController.getString("General")));

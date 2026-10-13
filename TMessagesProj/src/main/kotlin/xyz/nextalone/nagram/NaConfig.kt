@@ -1117,6 +1117,18 @@ object NaConfig {
             ConfigItem.configTypeInt,
             2 // index into AUTO_TRANSLATE_PAUSE_MINUTES: off, 1, 5, 15, 60
         )
+    val keepDeletedMessages =
+        addConfig(
+            "KeepDeletedMessages",
+            ConfigItem.configTypeBool,
+            true
+        )
+    val keepEditHistory =
+        addConfig(
+            "KeepEditHistory",
+            ConfigItem.configTypeBool,
+            true
+        )
     val deepLFormality =
         addConfig(
             "DeepLFormality",

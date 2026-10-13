@@ -400,4 +400,12 @@
     <string name="TranslateLockToLibreAbout">Refuse to send message text to any other translation provider</string>
     <string name="TranslateLockedToLibre">Translation is locked to your LibreTranslate server. Switch the provider back to LibreTranslate, or turn off the lock in Privacy settings.</string>
     <string name="AutoTranslatePauseMinutes">Pause auto-translate after a failure</string>
+    <string name="KeepDeletedMessages">Keep deleted messages</string>
+    <string name="KeepDeletedMessagesAbout">When someone deletes a message, keep it on this device and mark it with a bin icon. Stored only on your phone.</string>
+    <string name="KeepEditHistory">Keep edit history</string>
+    <string name="KeepEditHistoryAbout">Save earlier versions of edited messages. Long-press a message and choose Edit history.</string>
+    <string name="ClearKeptMessageHistory">Clear kept deleted and edited messages</string>
+    <string name="ClearKeptMessageHistoryDone">Kept message history cleared</string>
+    <string name="EditHistory">Edit history</string>
+    <string name="EditHistoryCurrent">Current</string>
 </resources>

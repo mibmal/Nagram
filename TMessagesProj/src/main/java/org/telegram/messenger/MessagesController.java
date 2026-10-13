@@ -19838,6 +19838,10 @@ public class MessagesController extends BaseController implements NotificationCe
                     message.attachPath = "";
                 }
 
+                if (xyz.nextalone.nagram.helper.MessageHistoryStore.editHistoryEnabled()) {
+                    // Personal build: keep the previous text before the edited version overwrites it.
+                    xyz.nextalone.nagram.helper.MessageHistoryStore.recordEdit(currentAccount, getMessagesStorage().getMessage(message.dialog_id, message.id), message);
+                }
                 ImageLoader.saveMessageThumbs(message);
                 AndroidUtilities.runOnUIThread(()-> getSendMessagesHelper().onMessageEdited(message));
 
@@ -21349,6 +21353,13 @@ public class MessagesController extends BaseController implements NotificationCe
             }
         });
 
+        if (deletedMessages != null && xyz.nextalone.nagram.helper.MessageHistoryStore.keepDeletedEnabled()) {
+            // Personal build: keep messages deleted on the server, and remember them so the chat can mark them.
+            for (int a = 0, size = deletedMessages.size(); a < size; a++) {
+                xyz.nextalone.nagram.helper.MessageHistoryStore.markDeleted(currentAccount, deletedMessages.keyAt(a), deletedMessages.valueAt(a));
+            }
+            deletedMessages = null;
+        }
         LongSparseIntArray markAsReadMessagesInboxFinal = markAsReadMessagesInbox;
         LongSparseIntArray markAsReadMessagesOutboxFinal = markAsReadMessagesOutbox;
         LongSparseArray<ArrayList<Integer>> markContentAsReadMessagesFinal = markContentAsReadMessages;

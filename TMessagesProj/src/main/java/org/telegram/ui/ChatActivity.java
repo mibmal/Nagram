@@ -451,6 +451,7 @@ public class ChatActivity extends BaseFragment implements
 
     // chat click menu buttons
     public final static int nkbtn_detail = 2012;
+    public final static int nkbtn_edit_history = 2090;
     public final static int nkbtn_deldlcache = 2013;
     public final static int nkbtn_view_history = 2014;
     public final static int nkbtn_repeat = 2015;
@@ -34284,6 +34285,25 @@ public class ChatActivity extends BaseFragment implements
         return messageObject;
     }
 
+    // Personal build: show earlier versions of an edited message, kept locally by MessageHistoryStore.
+    private void showEditHistory(MessageObject messageObject) {
+        if (messageObject == null || getParentActivity() == null) {
+            return;
+        }
+        java.util.List<xyz.nextalone.nagram.helper.MessageHistoryStore.EditVersion> versions = xyz.nextalone.nagram.helper.MessageHistoryStore.getEdits(currentAccount, messageObject);
+        StringBuilder text = new StringBuilder();
+        for (xyz.nextalone.nagram.helper.MessageHistoryStore.EditVersion version : versions) {
+            text.append(LocaleController.formatDateAudio(version.getDate(), true)).append('\n').append(version.getText()).append("\n\n");
+        }
+        text.append(LocaleController.getString(R.string.EditHistoryCurrent)).append('\n').append(messageObject.messageOwner.message == null ? "" : messageObject.messageOwner.message);
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), themeDelegate);
+        builder.setTitle(LocaleController.getString(R.string.EditHistory));
+        builder.setMessage(text.toString());
+        builder.setPositiveButton(LocaleController.getString(R.string.OK), null);
+        builder.setNeutralButton(LocaleController.getString(R.string.Copy), (dialog, which) -> AndroidUtilities.addToClipboard(text.toString()));
+        showDialog(builder.create());
+    }
+
     private void processSelectedOption(int option) {
         if (selectedObject == null || getParentActivity() == null) {
             return;
@@ -46129,6 +46149,10 @@ public class ChatActivity extends BaseFragment implements
                 presentFragment(new MessageDetailsActivity(selectedObject));
                 break;
             }
+            case nkbtn_edit_history: {
+                showEditHistory(selectedObject);
+                break;
+            }
             case nkbtn_view_history: {
                 // same as "search_from_user_id"
                 TLRPC.Peer peer = selectedObject.messageOwner.from_id;
@@ -48614,6 +48638,11 @@ public class ChatActivity extends BaseFragment implements
                     options.add(nkbtn_detail);
                     icons.add(R.drawable.msg_info);
                 }
+                if (xyz.nextalone.nagram.helper.MessageHistoryStore.editHistoryEnabled() && xyz.nextalone.nagram.helper.MessageHistoryStore.hasEdits(currentAccount, selectedObject)) {
+                    items.add(LocaleController.getString(R.string.EditHistory));
+                    options.add(nkbtn_edit_history);
+                    icons.add(R.drawable.msg_edit);
+                }
                 if (NekoConfig.showMessageHide.Bool()) {
                     items.add(LocaleController.getString(R.string.Hide));
                     options.add(nkbtn_hide);
@@ -48842,6 +48871,11 @@ public class ChatActivity extends BaseFragment implements
                     items.add(LocaleController.getString(R.string.MessageDetails));
                     options.add(nkbtn_detail);
                     icons.add(R.drawable.msg_info);
+                }
+                if (xyz.nextalone.nagram.helper.MessageHistoryStore.editHistoryEnabled() && xyz.nextalone.nagram.helper.MessageHistoryStore.hasEdits(currentAccount, selectedObject)) {
+                    items.add(LocaleController.getString(R.string.EditHistory));
+                    options.add(nkbtn_edit_history);
+                    icons.add(R.drawable.msg_edit);
                 }
                 if (NekoConfig.showMessageHide.Bool()) {
                     items.add(LocaleController.getString(R.string.Hide));
