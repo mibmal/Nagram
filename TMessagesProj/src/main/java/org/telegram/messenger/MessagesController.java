@@ -19840,7 +19840,8 @@ public class MessagesController extends BaseController implements NotificationCe
 
                 if (xyz.nextalone.nagram.helper.MessageHistoryStore.editHistoryEnabled()) {
                     // Personal build: keep the previous text before the edited version overwrites it.
-                    xyz.nextalone.nagram.helper.MessageHistoryStore.recordEdit(currentAccount, getMessagesStorage().getMessage(message.dialog_id, message.id), message);
+                    // Queued before this update's own database write, so it still reads the old version.
+                    getMessagesStorage().getStorageQueue().postRunnable(() -> xyz.nextalone.nagram.helper.MessageHistoryStore.recordEdit(currentAccount, getMessagesStorage().getMessageOnStorageQueue(message.dialog_id, message.id), message));
                 }
                 ImageLoader.saveMessageThumbs(message);
                 AndroidUtilities.runOnUIThread(()-> getSendMessagesHelper().onMessageEdited(message));
