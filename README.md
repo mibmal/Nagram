@@ -2,8 +2,9 @@
 
 Nagram is a third-party Telegram client based on [NekoX](https://web.archive.org/web/20240306062834/https://github.com/NekoX-Dev/NekoX) with some modifications.
 
-- Official Site: <https://nextalone.xyz>
-- Telegram Update Channel: <https://t.me/nagram_channel>
+- Official Site: <https://nagram.app>
+- Channel: <https://t.me/nagram_channel>
+- Assets: <https://t.me/nagram_assets>
 - Releases: <https://github.com/NextAlone/Nagram/releases>
 - Issues here: <https://t.me/na_gram_reports/18>
 
@@ -150,23 +151,18 @@ Build:
     }
    ```
 
-3. Build native dependencies:
-   ```shell
-   ./run init libs
-   ```
-
-4. Build external libraries and native code: 
+3. Build external libraries and native code: 
    ```shell
    ./run libs native
    ```
 
-5. Fill out `TELEGRAM_APP_ID` and `TELEGRAM_APP_HASH` in **local.properties** (from [Telegram Developer](https://my.telegram.org/auth))
+4. Fill out `TELEGRAM_APP_ID` and `TELEGRAM_APP_HASH` in **local.properties** (from [Telegram Developer](https://my.telegram.org/auth))
 
-6. Replace **TMessagesProj/google-services.json** if you want FCM to work.
+5. Replace **TMessagesProj/google-services.json** if you want FCM to work.
 
-7. Replace **release.keystore** with yours and fill out `ALIAS_NAME`, `KEYSTORE_PASS` and `ALIAS_PASS` in **local.properties**.
+6. Replace **release.keystore** with yours and fill out `ALIAS_NAME`, `KEYSTORE_PASS` and `ALIAS_PASS` in **local.properties**.
 
-8. Build with Gradle:
+7. Build with Gradle:
 
    ```shell
    ./gradlew assemble<Release/Debug>
@@ -199,8 +195,12 @@ Then, use base64 to encode the above.
 3. Add Repo Action Secrets
 
 - LOCAL_PROPERTIES: from step 2
-- HELPER_BOT_TOKEN: from telegram [@Botfather](https://t.me/Botfather), such as `1111:abcd`
-- HELPER_BOT_TARGET: from telegram chat id, such as `777000`
+- HELPER_BOT_TOKEN: from telegram [@Botfather](https://t.me/Botfather), such as `1111:abcd`; the bot that keeps the in-app update metadata
+- NAGRAM_CHANNEL_BOT_TOKEN, NAGRAM_API_ID, NAGRAM_API_HASH: the bot that posts the builds to the channels, and the Telegram API credentials its Bot API server runs with
+
+   The channels are repository variables: NAGRAM_CHANNEL_ASSETS_CHAT_ID gets every build, NAGRAM_CHANNEL_CHAT_ID gets a copy of the releases. Nothing is posted while the token or the channels are not set. A release needs its notes in `docs/releases/<version code>.md`, with optional English notes in `<version code>.en.md`.
+
+   The GitLab pipeline posts to its own channel instead, with the HELPER_BOT_TARGET CI/CD variable holding the chat id, such as `-1001234567890`.
 
 4. Disable signature check by removing the following lines in **TMessagesProj/jni/jni.c**:
    ```c
