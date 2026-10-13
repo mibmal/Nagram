@@ -19,7 +19,9 @@ import xyz.nextalone.nagram.NaConfig
 import xyz.nextalone.nagram.helper.MessageHelper
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 private fun translationContext(message: MessageObject, timeline: List<MessageObject>): List<String> {
     if (NekoConfig.translationProvider.Int() != Translator.providerLLM || !NaConfig.llmUseContext.Bool()) {
@@ -131,6 +133,9 @@ fun ChatActivity.translateMessages(
         }
     }
 
+    val error = AtomicReference<Throwable?>()
+    val failed = ConcurrentLinkedQueue<MessageObject>()
+
     val timeline = this.messages.toList()
     GlobalScope.launch(Dispatchers.IO) {
         messages.forEach { selectedObject ->
@@ -145,11 +150,12 @@ fun ChatActivity.translateMessages(
                     }
                 }
                 else -> deferreds.add(async(transPool) {
-                    val success = translateMessage(selectedObject, target, context, cancel, status)
+                    val success = translateMessage(selectedObject, target, context, cancel, error)
                     if (!cancel.get()) {
                         if (success) {
                             selectedObject.messageOwner.translated = true
                         } else {
+                            failed.add(selectedObject)
                             selectedObject.messageOwner.translated = false
                             selectedObject.messageOwner.translatedMessage = selectedObject.messageOwner.message
                         }
@@ -165,6 +171,7 @@ fun ChatActivity.translateMessages(
         deferreds.awaitAll()
         transPool.cancel()
         UIUtil.runOnUIThread { if (!cancel.get()) status?.uDismiss() }
+        error.get()?.let { handleError(target, it, failed.toList(), autoTranslate, cancel) }
     }
     messages.forEach { it.translating = false }
 }
@@ -185,8 +192,9 @@ private suspend fun translateWithRetry(
         } catch (e: UnsupportedOperationException) {
             throw e
         } catch (e: Exception) {
-            if (++attempt >= 3 || cancel.get()) throw e
-            delay(1000L * attempt)
+            if (++attempt >= 5 || cancel.get()) throw e
+            // 1s, 2s, 4s, 8s: gives the network time to come back after the app is resumed
+            delay(1000L shl (attempt - 1))
         }
     }
 }
@@ -196,13 +204,13 @@ private suspend fun ChatActivity.translateMessage(
     target: Locale,
     context: List<String>,
     cancel: AtomicBoolean,
-    status: AlertDialog?
+    error: AtomicReference<Throwable?>
 ): Boolean {
     val db = TranslateDb.forLocale(target)
     return if (message.isPoll) {
-        translatePoll(message, target, context, db, cancel, status)
+        translatePoll(message, target, context, db, cancel, error)
     } else {
-        translateText(message, target, context, db, cancel, status)
+        translateText(message, target, context, db, cancel, error)
     }
 }
 
@@ -212,7 +220,7 @@ private suspend fun ChatActivity.translatePoll(
     context: List<String>,
     db: TranslateDb,
     cancel: AtomicBoolean,
-    status: AlertDialog?
+    error: AtomicReference<Throwable?>
 ): Boolean {
     val pool = (message.messageOwner.media as TLRPC.TL_messageMediaPoll).poll
     var question = if (context.isEmpty()) db.query(pool.question.text)?.takeIf { it.isNotBlank() } else null
@@ -221,7 +229,7 @@ private suspend fun ChatActivity.translatePoll(
         question = runCatching {
             translateWithRetry(target, pool.question.text, context, cancel)
         }.getOrElse {
-            handleError(target, it, cancel, status)
+            error.compareAndSet(null, it)
             return false
         }
     }
@@ -239,7 +247,7 @@ private suspend fun ChatActivity.translatePoll(
             answer = runCatching {
                 translateWithRetry(target, it.text.text, context, cancel)
             }.getOrElse { e ->
-                handleError(target, e, cancel, status)
+                error.compareAndSet(null, e)
                 return false
             }
         }
@@ -256,7 +264,7 @@ private suspend fun ChatActivity.translatePoll(
             translatedSolution = runCatching {
                 translateWithRetry(target, solution.text, context, cancel)
             }.getOrElse {
-                handleError(target, it, cancel, status)
+                error.compareAndSet(null, it)
                 return false
             }
         }
@@ -276,7 +284,7 @@ private suspend fun ChatActivity.translateText(
     context: List<String>,
     db: TranslateDb,
     cancel: AtomicBoolean,
-    status: AlertDialog?
+    error: AtomicReference<Throwable?>
 ): Boolean {
     val originalMessage = message.messageOwner?.message
     if (originalMessage.isNullOrBlank()) {
@@ -287,7 +295,7 @@ private suspend fun ChatActivity.translateText(
         text = runCatching {
             translateWithRetry(target, originalMessage, context, cancel)
         }.getOrElse {
-            handleError(target, it, cancel, status)
+            error.compareAndSet(null, it)
             message.messageOwner.translatedMessage = originalMessage
             return false
         }
@@ -305,26 +313,26 @@ private suspend fun ChatActivity.translateText(
     return true
 }
 
+// Shows at most one error dialog per batch, and Retry only re-translates the messages that failed.
 private fun ChatActivity.handleError(
     target: Locale,
     error: Throwable,
-    cancel: AtomicBoolean,
-    status: AlertDialog?
+    failed: List<MessageObject>,
+    autoTranslate: Boolean,
+    cancel: AtomicBoolean
 ) {
-    // No progress dialog means this is a background auto-translation:
-    // don't interrupt reading with an error popup, just keep the original text.
-    if (status == null) {
+    // Background auto-translation: don't interrupt reading with an error popup, just keep the original text.
+    if (autoTranslate) {
         FileLog.e("auto translate failed: ${error.message ?: error.javaClass.simpleName}")
         return
     }
-    status.uDismiss()
-    if (parentActivity != null && !cancel.get()) {
+    if (parentActivity != null && !cancel.get() && failed.isNotEmpty()) {
         AlertUtil.showTransFailedDialog(
             parentActivity,
             error is UnsupportedOperationException,
             error.message ?: error.javaClass.simpleName
         ) {
-            translateMessages(target, messages)
+            translateMessages(target, failed)
         }
     }
 }
