@@ -389,4 +389,15 @@
     <string name="SwitchStyleTelegram">Telegram</string>
     <string name="SwitchStyleModern">Modern</string>
     <string name="DisableChatListSwipeGesture">Disable chat list swipe gesture</string>
+    <string name="StripTrackingParams">Remove tracking from links</string>
+    <string name="StripTrackingParamsAbout">Strip utm_, fbclid, gclid and similar parameters from links you send and open</string>
+    <string name="StripTrackingParamsExtra">Extra link parameters to remove</string>
+    <string name="StripFileMetadata">Remove metadata from images sent as files</string>
+    <string name="StripFileMetadataAbout">Remove GPS location, camera model and timestamps from JPEG, PNG and WebP files before upload. Your original file is not changed.</string>
+    <string name="HideInRecents">Hide chats in recent apps</string>
+    <string name="HideInRecentsAbout">Show a blank preview in the app switcher (Android 13+). Screenshots still work.</string>
+    <string name="TranslateLockToLibre">Only translate via LibreTranslate</string>
+    <string name="TranslateLockToLibreAbout">Refuse to send message text to any other translation provider</string>
+    <string name="TranslateLockedToLibre">Translation is locked to your LibreTranslate server. Switch the provider back to LibreTranslate, or turn off the lock in Privacy settings.</string>
+    <string name="AutoTranslatePauseMinutes">Pause auto-translate after a failure</string>
 </resources>

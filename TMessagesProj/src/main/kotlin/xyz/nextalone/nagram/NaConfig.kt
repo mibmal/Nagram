@@ -1079,6 +1079,44 @@ object NaConfig {
             ConfigItem.configTypeString,
             ""
         )
+
+    // Personal privacy build options
+    val stripTrackingParams =
+        addConfig(
+            "StripTrackingParams",
+            ConfigItem.configTypeBool,
+            true
+        )
+    val stripTrackingParamsExtra =
+        addConfig(
+            "StripTrackingParamsExtra",
+            ConfigItem.configTypeString,
+            ""
+        )
+    val stripFileMetadata =
+        addConfig(
+            "StripFileMetadata",
+            ConfigItem.configTypeBool,
+            true
+        )
+    val translateLockToLibre =
+        addConfig(
+            "TranslateLockToLibre",
+            ConfigItem.configTypeBool,
+            true
+        )
+    val hideInRecents =
+        addConfig(
+            "HideInRecents",
+            ConfigItem.configTypeBool,
+            false
+        )
+    val autoTranslatePauseMinutes =
+        addConfig(
+            "AutoTranslatePauseMinutes",
+            ConfigItem.configTypeInt,
+            2 // index into AUTO_TRANSLATE_PAUSE_MINUTES: off, 1, 5, 15, 60
+        )
     val deepLFormality =
         addConfig(
             "DeepLFormality",

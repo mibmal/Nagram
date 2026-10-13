@@ -23,6 +23,12 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
+// Minutes to pause background auto-translation after it fails, indexed by NaConfig.autoTranslatePauseMinutes.
+val AUTO_TRANSLATE_PAUSE_MINUTES = intArrayOf(0, 1, 5, 15, 60)
+
+@Volatile
+private var autoTranslatePausedUntil = 0L
+
 private fun translationContext(message: MessageObject, timeline: List<MessageObject>): List<String> {
     if (NekoConfig.translationProvider.Int() != Translator.providerLLM || !NaConfig.llmUseContext.Bool()) {
         return emptyList()
@@ -99,6 +105,8 @@ fun ChatActivity.translateMessages(
     autoTranslate: Boolean = false
 ) {
     if (messages.any { it.translating }) return
+    // While the translation server is unreachable, skip background auto-translation instead of failing every message.
+    if (autoTranslate && System.currentTimeMillis() < autoTranslatePausedUntil) return
 
     if (messages.all { it.messageOwner.translated }) {
         messages.forEach {
@@ -324,6 +332,10 @@ private fun ChatActivity.handleError(
     // Background auto-translation: don't interrupt reading with an error popup, just keep the original text.
     if (autoTranslate) {
         FileLog.e("auto translate failed: ${error.message ?: error.javaClass.simpleName}")
+        val minutes = AUTO_TRANSLATE_PAUSE_MINUTES.getOrElse(NaConfig.autoTranslatePauseMinutes.Int()) { 0 }
+        if (minutes > 0 && error !is UnsupportedOperationException) {
+            autoTranslatePausedUntil = System.currentTimeMillis() + minutes * 60_000L
+        }
         return
     }
     if (parentActivity != null && !cancel.get() && failed.isNotEmpty()) {

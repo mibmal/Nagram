@@ -109,6 +109,10 @@ interface Translator {
             if (country.lowercase() == "duang") country = "CN"
 
             val provider = NekoConfig.translationProvider.Int()
+            if (xyz.nextalone.nagram.NaConfig.translateLockToLibre.Bool() && provider != providerLibreTranslate) {
+                // Personal build: never send message text to a third-party translator.
+                throw UnsupportedOperationException(LocaleController.getString(R.string.TranslateLockedToLibre))
+            }
             when (provider) {
                 providerDeepL,
                 providerDeepLOfficial,

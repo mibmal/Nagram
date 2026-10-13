@@ -8716,6 +8716,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (!hasOnlyEmoji) {
             text = AndroidUtilities.getTrimmedString(text);
         }
+        text = xyz.nextalone.nagram.helper.PrivacyHelper.cleanTrackingInText(text);
         boolean supportsNewEntities = supportsSendingNewEntities();
         int maxLength = accountInstance.getMessagesController().getMaxMessageLength();
         if (text.length() != 0) {

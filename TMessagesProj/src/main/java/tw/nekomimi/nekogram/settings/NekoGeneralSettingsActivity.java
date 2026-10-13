@@ -289,6 +289,18 @@ private final AbstractConfigCell defaultHlsVideoQualityRow = cellGroup.appendCel
     private final AbstractConfigCell disableAutoWebLoginRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getDisableAutoWebLogin()));
     private final AbstractConfigCell sentryAnalyticsRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getSentryAnalytics()));
     private final AbstractConfigCell firebaseCrashlyticsRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getFirebaseCrashlytics()));
+    private final AbstractConfigCell stripTrackingParamsRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getStripTrackingParams(), LocaleController.getString(R.string.StripTrackingParamsAbout)));
+    private final AbstractConfigCell stripTrackingParamsExtraRow = cellGroup.appendCell(new ConfigCellTextInput(null, NaConfig.INSTANCE.getStripTrackingParamsExtra(), "ref, source", null));
+    private final AbstractConfigCell stripFileMetadataRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getStripFileMetadata(), LocaleController.getString(R.string.StripFileMetadataAbout)));
+    private final AbstractConfigCell hideInRecentsRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getHideInRecents(), LocaleController.getString(R.string.HideInRecentsAbout)));
+    private final AbstractConfigCell translateLockToLibreRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getTranslateLockToLibre(), LocaleController.getString(R.string.TranslateLockToLibreAbout)));
+    private final AbstractConfigCell autoTranslatePauseMinutesRow = cellGroup.appendCell(new ConfigCellSelectBox(null, NaConfig.INSTANCE.getAutoTranslatePauseMinutes(), new String[]{
+            LocaleController.getString(R.string.Disable),
+            LocaleController.formatPluralString("Minutes", 1),
+            LocaleController.formatPluralString("Minutes", 5),
+            LocaleController.formatPluralString("Minutes", 15),
+            LocaleController.formatPluralString("Minutes", 60),
+    }, null));
     private final AbstractConfigCell divider6 = cellGroup.appendCell(new ConfigCellDivider());
 
     private final AbstractConfigCell header7 = cellGroup.appendCell(new ConfigCellHeader(LocaleController.getString("General")));

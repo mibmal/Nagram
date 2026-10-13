@@ -9319,6 +9319,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                 extension = null;
             }
         }
+        path = xyz.nextalone.nagram.helper.PrivacyHelper.stripMetadataIfEnabled(path);
         final File f = new File(path);
         if (!f.exists() || f.length() == 0) {
             return ERROR_TYPE_UNSUPPORTED;

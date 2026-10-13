@@ -7141,6 +7141,10 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     protected void onResume() {
         super.onResume();
         isResumed = true;
+        if (Build.VERSION.SDK_INT >= 33) {
+            // Personal build: keep chat content out of the recent-apps preview without blocking screenshots.
+            setRecentsScreenshotEnabled(!NaConfig.INSTANCE.getHideInRecents().Bool());
+        }
         pipActivityHandler.onResume();
         if (onResumeStaticCallback != null) {
             onResumeStaticCallback.run();
