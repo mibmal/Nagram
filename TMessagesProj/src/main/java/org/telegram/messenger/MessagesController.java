@@ -11460,14 +11460,14 @@ public class MessagesController extends BaseController implements NotificationCe
             boolean isEncryptedChat = DialogObject.isEncryptedDialog(key);
             ConcurrentHashMap<Integer, ArrayList<PrintingUser>> threads = dialogEntry.getValue();
 
+            LongSparseArray<CharSequence> newPrintingStrings = new LongSparseArray<>();
+            LongSparseArray<Integer> newPrintingStringsTypes = new LongSparseArray<>();
+            newStrings.put(key, newPrintingStrings);
+            newTypes.put(key, newPrintingStringsTypes);
+
             for (HashMap.Entry<Integer, ArrayList<PrintingUser>> threadEntry : threads.entrySet()) {
                 Integer threadId = threadEntry.getKey();
                 ArrayList<PrintingUser> arr = threadEntry.getValue();
-
-                LongSparseArray<CharSequence> newPrintingStrings = new LongSparseArray<>();
-                LongSparseArray<Integer> newPrintingStringsTypes = new LongSparseArray<>();
-                newStrings.put(key, newPrintingStrings);
-                newTypes.put(key, newPrintingStringsTypes);
 
                 if (NekoConfig.ignoreBlocked.Bool()) {
                     arr = arr.stream().filter(it -> getMessagesController().blockePeers.indexOfKey(it.userId) == -1).collect(Collectors.toCollection(ArrayList::new));
@@ -15300,6 +15300,16 @@ public class MessagesController extends BaseController implements NotificationCe
 
             loadFullChat(communityId, 0, true);
             callback.run(res, err);
+        });
+    }
+
+    public void onCommunityChatGroupingChanged() {
+        getMessagesStorage().getStorageQueue().postRunnable(() -> {
+            getMessagesStorage().resetAllUnreadCounters(false);
+            AndroidUtilities.runOnUIThread(() -> {
+                sortDialogs(null);
+                getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+            });
         });
     }
 
@@ -22528,7 +22538,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 long dialogId = d.id;
                 if (isCommunity) {
                     TLRPC.Chat community = getChat(-dialogId);
-                    if (community != null && !community.collapsed_in_dialogs) {
+                    if (community != null && !ChatObject.isCommunityCollapsedInDialogs(community)) {
                         continue;
                     }
                 }
@@ -22597,7 +22607,7 @@ public class MessagesController extends BaseController implements NotificationCe
             if (d instanceof TLRPC.TL_dialogCommunity) {
                 final long communityId = d.community_id;
                 final TLRPC.Chat community = getChat(communityId);
-                if (community != null && !community.collapsed_in_dialogs || dialogsCommunityFoundCommunities.get(communityId) != null) {
+                if (community != null && !ChatObject.isCommunityCollapsedInDialogs(community) || dialogsCommunityFoundCommunities.get(communityId) != null) {
                     allDialogs.remove(a);
                     a--;
                     N--;
@@ -22741,7 +22751,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         long dialogId = d.id;
                         if (isCommunity) {
                             TLRPC.Chat community = getChat(-dialogId);
-                            if (community != null && !community.collapsed_in_dialogs) {
+                            if (community != null && !ChatObject.isCommunityCollapsedInDialogs(community)) {
                                 continue;
                             }
                         }
@@ -22857,7 +22867,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
             } else if (d instanceof TLRPC.TL_dialogCommunity) {
                 TLRPC.Chat chat = getChat(-d.id);
-                if (chat == null || !chat.collapsed_in_dialogs) {
+                if (!ChatObject.isCommunityCollapsedInDialogs(chat)) {
                     continue;
                 }
                 dialogsForward.add(d);

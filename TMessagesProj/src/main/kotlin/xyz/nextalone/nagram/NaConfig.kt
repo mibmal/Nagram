@@ -957,7 +957,7 @@ object NaConfig {
         addConfig(
             "PlayerDecoder",
             ConfigItem.configTypeInt,
-            0
+            2
         )
     val showUserIconsInChatsList =
         addConfig(
@@ -1296,6 +1296,13 @@ object NaConfig {
             6,
             false
         )
+    val customDialogsMenuMyProfile =
+        addConfig(
+            "MyProfile",
+            customDialogsMenu,
+            7,
+            false
+        )
     val sidebarSettingsActivity =
         addConfig(
             "SidebarSettingsActivity",
@@ -1405,6 +1412,60 @@ object NaConfig {
             "DisableChatListSwipeGesture",
             ConfigItem.configTypeBool,
             false
+        )
+    val globalDisableLinkPreviews =
+        addConfig(
+            "GlobalDisableLinkPreviews",
+            ConfigItem.configTypeBool,
+            false
+        )
+    val alwaysSendVideosInHD =
+        addConfig(
+            "AlwaysSendVideosInHD",
+            ConfigItem.configTypeBool,
+            false
+        )
+    val showChannelIcon =
+        addConfig(
+            "ShowChannelIcon",
+            ConfigItem.configTypeBool,
+            false
+        )
+    val hideSideShareButton =
+        addConfig(
+            "HideSideShareButton",
+            ConfigItem.configTypeBool,
+            false
+        )
+    val askBeforeSendingSticker =
+        addConfig(
+            "AskBeforeSendingSticker",
+            ConfigItem.configTypeBool,
+            false
+        )
+    val keepFormatting =
+        addConfig(
+            "KeepFormatting",
+            ConfigItem.configTypeBool,
+            true
+        )
+    val askBeforeSendingGIF =
+        addConfig(
+            "AskBeforeSendingGIF",
+            ConfigItem.configTypeBool,
+            false
+        )
+    val disableCommunityChatGrouping =
+        addConfig(
+            "DisableCommunityChatGrouping",
+            ConfigItem.configTypeBool,
+            false
+        )
+    val communityAvatarTapAction =
+        addConfig(
+            "CommunityAvatarTapAction",
+            ConfigItem.configTypeInt,
+            1
         )
 
     private fun addConfig(
