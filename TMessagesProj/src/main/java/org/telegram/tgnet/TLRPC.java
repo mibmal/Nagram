@@ -57565,6 +57565,15 @@ public class TLRPC {
 
         // NekoX Customs
         public boolean hide; // custom
+        // Translated inline keyboard buttons and link preview (title +
+        // description), set by the translation extras in MessageTrans; originals
+        // are kept here so undo can restore them. Runtime-only, never serialized.
+        public ArrayList<String> originalButtonTexts; //custom
+        public ArrayList<String> translatedButtonTexts; //custom
+        public String originalWebPageTitle; //custom
+        public String originalWebPageDescription; //custom
+        public String translatedWebPageTitle; //custom
+        public String translatedWebPageDescription; //custom
 
         private static Message fromConstructor(int constructor) {
             switch (constructor) {

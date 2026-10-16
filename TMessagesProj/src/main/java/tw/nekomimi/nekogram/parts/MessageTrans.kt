@@ -11,8 +11,10 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.telegram.messenger.FileLog
 import org.telegram.messenger.MessageObject
 import org.telegram.tgnet.TLRPC
+import org.telegram.tgnet.tl.TL_keyboard
 import org.telegram.ui.ActionBar.AlertDialog
 import org.telegram.ui.ChatActivity
 import tw.nekomimi.nekogram.NekoConfig
@@ -195,7 +197,12 @@ private suspend fun ChatActivity.translateOne(
         if (message.isPoll) {
             translatePoll(message, target, context, db, cancel, status)
         } else {
-            translateFromCache(message, db) || translateText(message, target, context, cancel, status)
+            translateFromCache(message, db) ||
+                translateText(message, target, context, cancel, status) ||
+                // A message can be translatable for its extras alone (bot keyboard
+                // with no caption, link preview with no text); translateText
+                // already covered the extras of messages that do have text.
+                (message.textSource() == null && translateExtras(message, target, context, cancel))
         }
     } catch (e: CancellationException) {
         throw e
@@ -219,6 +226,8 @@ private fun translateFromCache(message: MessageObject, db: TranslateDb): Boolean
     val source = message.textSource() ?: return false
     val separator = MessageTransText.separatorFor(false)
     val cached = MessageTransText.mergeCached(source, db, separator) ?: return false
+    // Extras are runtime-only; without a cache they need the network path, which owns them.
+    if (message.hasTranslateExtras() && !message.applyCachedTranslateExtras()) return false
     markTranslatedLocally(message) { it.translatedText = cached }
     return true
 }
@@ -245,6 +254,8 @@ private suspend fun ChatActivity.translateText(
     if (translated.isBlank() || cancel.get()) return false
 
     markTranslatedLocally(message) { it.translatedText = MessageTransText.merge(source, translated, separator) }
+    // Best effort: buttons and the link preview never fail the text translation.
+    translateExtras(message, target, context, cancel)
     return true
 }
 
@@ -292,11 +303,130 @@ private fun markTranslatedLocally(message: MessageObject, block: (TLRPC.Message)
 
 private fun ChatActivity.clearTranslation(message: MessageObject) {
     val owner = message.messageOwner
+    message.restoreTranslateExtras()
     owner.translatedText = null
     owner.translatedPoll = null
     message.translatedLocally = false
     message.updateTranslation(true)
     messageHelper.resetMessageContent(dialogId, message)
+}
+
+// --- Translation extras: inline keyboard buttons and the link preview ---
+
+private fun MessageObject.inlineButtons(): List<TL_keyboard.KeyboardInlineButton> {
+    val markup = messageOwner?.reply_markup as? TLRPC.TL_replyInlineMarkup ?: return emptyList()
+    return markup.rows.filterNotNull().flatMap { it.buttons.filterNotNull() }
+}
+
+private fun MessageObject.linkWebPage(): TLRPC.WebPage? {
+    return (messageOwner?.media as? TLRPC.TL_messageMediaWebPage)?.webpage as? TLRPC.WebPage
+}
+
+private fun MessageObject.hasTranslateExtras(): Boolean {
+    if (inlineButtons().any { !it.text.isNullOrBlank() }) return true
+    val page = linkWebPage()
+    return !page?.title.isNullOrBlank() || !page?.description.isNullOrBlank()
+}
+
+/** Re-applies translated buttons / link preview from this message's cache.
+ *  Returns false when there is something to translate but no cache yet, so
+ *  the caller takes the network path. */
+private fun MessageObject.applyCachedTranslateExtras(): Boolean {
+    val owner = messageOwner ?: return true
+    val buttons = inlineButtons()
+    if (buttons.isNotEmpty()) {
+        val cached = owner.translatedButtonTexts
+        if (cached == null || cached.size != buttons.size) return false
+        buttons.forEachIndexed { index, button -> button.text = cached[index] }
+    }
+    val page = linkWebPage()
+    if (page != null) {
+        if (owner.translatedWebPageTitle == null && owner.translatedWebPageDescription == null) {
+            if (!page.title.isNullOrBlank() || !page.description.isNullOrBlank()) return false
+        }
+        owner.translatedWebPageTitle?.let { page.title = it }
+        owner.translatedWebPageDescription?.let { page.description = it }
+    }
+    return true
+}
+
+/** Restores original button texts and link preview (undo / show original). */
+private fun MessageObject.restoreTranslateExtras() {
+    val owner = messageOwner ?: return
+    val buttons = inlineButtons()
+    val originals = owner.originalButtonTexts
+    if (originals != null && originals.size == buttons.size) {
+        buttons.forEachIndexed { index, button -> button.text = originals[index] }
+    }
+    val page = linkWebPage()
+    if (page != null) {
+        owner.originalWebPageTitle?.let { page.title = it }
+        owner.originalWebPageDescription?.let { page.description = it }
+    }
+}
+
+/**
+ * Translates the extras of [message] -- inline keyboard buttons and the link
+ * preview title/description -- caching the result on the message owner and
+ * applying it in place. Best effort: a failed extra keeps its original text
+ * and never fails the message.
+ *
+ * @return true when [message] has no text and its extras were applied, so it
+ *         counts as fully translated for the extras-only fallback in
+ *         [translateOne].
+ */
+private suspend fun ChatActivity.translateExtras(
+    message: MessageObject,
+    target: Locale,
+    context: List<String>,
+    cancel: AtomicBoolean
+): Boolean {
+    val owner = message.messageOwner ?: return false
+    val extrasOnly = message.textSource() == null
+
+    val buttons = message.inlineButtons()
+    if (buttons.isNotEmpty() && owner.translatedButtonTexts == null) {
+        val originals = buttons.map { it.text ?: "" }
+        val translations = originals.map { text ->
+            if (cancel.get() || text.isBlank() || text.none { it.isLetter() }) {
+                text
+            } else {
+                runCatching { Translator.translate(target, text, context) }
+                    .getOrElse { FileLog.e("button translate failed", it); text }
+            }
+        }
+        if (cancel.get()) return false
+        owner.originalButtonTexts = ArrayList(originals)
+        owner.translatedButtonTexts = ArrayList(translations)
+    }
+    if (cancel.get()) return false
+
+    val page = message.linkWebPage()
+    if (page != null && owner.translatedWebPageTitle == null && owner.translatedWebPageDescription == null) {
+        val title = page.title
+        val description = page.description
+        val translatedTitle = title?.takeIf { it.isNotBlank() && it.any { c -> c.isLetter() } }?.let { text ->
+            runCatching { Translator.translate(target, text, context) }
+                .getOrElse { FileLog.e("webpage title translate failed", it); text }
+        }
+        val translatedDescription = description?.takeIf { it.isNotBlank() && it.any { c -> c.isLetter() } }?.let { text ->
+            runCatching { Translator.translate(target, text, context) }
+                .getOrElse { FileLog.e("webpage description translate failed", it); text }
+        }
+        if (cancel.get()) return false
+        owner.originalWebPageTitle = title
+        owner.originalWebPageDescription = description
+        owner.translatedWebPageTitle = translatedTitle ?: title
+        owner.translatedWebPageDescription = translatedDescription ?: description
+    }
+
+    if (!message.applyCachedTranslateExtras()) return false
+    if (extrasOnly) {
+        // Flag it through the same local pipeline the text path uses, so the
+        // undo branch and MessageObject.updateTranslation treat it as translated.
+        markTranslatedLocally(message) { }
+    }
+    return extrasOnly
 }
 
 private fun ChatActivity.reportError(

@@ -3757,7 +3757,10 @@ public class MessageObject {
                 generateCaption();
             }
             return replyUpdated || true;
-        } else if (messageOwner != null && translatedLocally && (translatedText != null || messageOwner.translatedPoll != null)) {
+        } else if (messageOwner != null && translatedLocally && (translatedText != null || messageOwner.translatedPoll != null
+                // NekoX: a message can be translatable for its extras alone (bot
+                // keyboard with no caption, link preview with no text).
+                || messageOwner.translatedButtonTexts != null || messageOwner.translatedWebPageTitle != null || messageOwner.translatedWebPageDescription != null)) {
             // NekoX: translations produced by third party providers are bound to the message
             // itself instead of the dialog wide auto translation setting.
             if (translated && !summarized) {
