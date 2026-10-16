@@ -66,6 +66,31 @@ object ImageTranslator {
     // the text out of the translation history.
     private val CONTEXT = listOf("Text recognised from an image (OCR); may contain recognition errors.")
 
+    /**
+     * Scrubs a provider answer before it is painted onto the picture. Known
+     * prompt artifacts ("Translate to ..." headers, TEXT/CONTEXT markers,
+     * code fences, wrapping quotes) are stripped; an answer that is clearly
+     * prompt echo is dropped entirely (the painter skips null blocks, so the
+     * original pixels stay visible instead of the prompt).
+     */
+    private fun tidyTranslation(out: String): String? {
+        var t = out.trim()
+        if (t.isEmpty()) return null
+        if (t.contains("<NON_OVERRIDABLE_RULES>") || t.contains("<CONTEXT>") ||
+            t.contains("recognised from an image", ignoreCase = true) ||
+            t.contains("recognized from an image", ignoreCase = true)
+        ) return null
+        Regex("(?s)^```[a-zA-Z]*\\s*(.*?)\\s*```$").find(t)?.let { t = it.groupValues[1] }
+        t = t.replace(Regex("</?(TEXT|CONTEXT|NON_OVERRIDABLE_RULES)>"), "")
+        t = t.replace(Regex("^Translate to\\s+[^\\n:]{1,40}:?\\s*", RegexOption.IGNORE_CASE), "")
+        for ((open, close) in listOf('"' to '"', '\'' to '\'', '\u201C' to '\u201D', '\u2018' to '\u2019')) {
+            if (t.length >= 2 && t.first() == open && t.last() == close) {
+                t = t.substring(1, t.length - 1).trim()
+            }
+        }
+        return t.ifBlank { null }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     private class Screen(val activity: Activity, val original: Bitmap) : Dialog(activity, android.R.style.Theme_Black_NoTitleBar_Fullscreen) {
 
@@ -162,11 +187,15 @@ object ImageTranslator {
                 // A few blocks at a time: providers rate-limit, and a self-hosted
                 // LibreTranslate on a small box shouldn't get 40 requests at once.
                 val gate = Semaphore(3)
-                val outs = texts.map { t ->
+                val answers = texts.map { t ->
                     async(Dispatchers.IO) {
                         gate.withPermit { runCatching { Translator.translate(to, t, CONTEXT) }.onFailure { FileLog.e(it) }.getOrNull() }
                     }
                 }.awaitAll()
+                // Small LLMs sometimes echo the request prompt instead of
+                // translating; scrub before painting so the prompt can't end
+                // up inside the picture.
+                val outs = answers.map { it?.let(::tidyTranslation) }
                 if (outs.all { it == null }) {
                     status.text = LocaleController.getString(R.string.TranslateFailed)
                     return@launch
