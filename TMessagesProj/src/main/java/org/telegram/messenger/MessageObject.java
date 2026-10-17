@@ -3760,7 +3760,7 @@ public class MessageObject {
         } else if (messageOwner != null && translatedLocally && (translatedText != null || messageOwner.translatedPoll != null
                 // NekoX: a message can be translatable for its extras alone (bot
                 // keyboard with no caption, link preview with no text).
-                || messageOwner.translatedButtonTexts != null || messageOwner.translatedWebPageTitle != null || messageOwner.translatedWebPageDescription != null)) {
+                || messageOwner.translatedButtons != null || messageOwner.translatedButtonTexts != null || messageOwner.translatedWebPageTitle != null || messageOwner.translatedWebPageDescription != null)) {
             // NekoX: translations produced by third party providers are bound to the message
             // itself instead of the dialog wide auto translation setting.
             if (translated && !summarized) {
@@ -4557,7 +4557,9 @@ public class MessageObject {
      * and the labels were translated, the translated label replaces the original.
      */
     public String getBotButtonText(int index, String original) {
-        if (!translated || messageOwner == null) {
+        // `translated` covers the upstream pipeline, `messageOwner.translated` the NekoX
+        // providers (LLM and friends), which mark the translation on the message itself.
+        if (messageOwner == null || !(translated || messageOwner.translated)) {
             return original;
         }
         final TranslateController.ButtonsText buttonsText = messageOwner.translatedButtons;
