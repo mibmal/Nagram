@@ -67,6 +67,7 @@ object ChatNameTrans {
     /** Detects the language first, so titles the user already reads stay untouched. */
     private fun detect(accountNum: Int, chatId: Long, title: String, target: String) {
         if (!LanguageDetector.hasSupport()) {
+            FileLog.e("[ChatNameTrans] MLKit language detection unavailable; keeping '$title' untranslated")
             store(chatId, title, target, null)
             return
         }
@@ -74,12 +75,14 @@ object ChatNameTrans {
             title,
             { lang ->
                 if (isLanguageRestricted(lang, target)) {
+                    FileLog.e("[ChatNameTrans] '$title' detected as '$lang', restricted for target '$target'; keeping original")
                     store(chatId, title, target, null)
                 } else {
                     scope.launch { translate(accountNum, chatId, title, target) }
                 }
             },
             {
+                FileLog.e("[ChatNameTrans] language detection failed; keeping '$title' untranslated", it)
                 store(chatId, title, target, null)
             }
         )
@@ -90,16 +93,18 @@ object ChatNameTrans {
         val db = TranslateDb.forLocale(locale)
         val translated = db.query(title)?.takeIf { it.isNotBlank() }
             ?: runCatching { Translator.translate(locale, title) }
-                .onFailure { if (it is CancellationException) throw it else FileLog.e(it) }
+                .onFailure { if (it is CancellationException) throw it else FileLog.e("[ChatNameTrans] provider failed for '$title'", it) }
                 .getOrNull()
                 ?.takeIf { it.isNotBlank() }
         if (translated != null && translated != title) {
+            FileLog.e("[ChatNameTrans] '$title' -> '$translated' (target $target)")
             store(chatId, title, target, translated)
             UIUtil.runOnUIThread {
                 NotificationCenter.getInstance(accountNum)
                     .postNotificationName(NotificationCenter.chatNameTranslated, -chatId)
             }
         } else {
+            FileLog.e("[ChatNameTrans] keeping '$title' untranslated (provider returned ${translated ?: "nothing"})")
             store(chatId, title, target, null)
         }
     }
