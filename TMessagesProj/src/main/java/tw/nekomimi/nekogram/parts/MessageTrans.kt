@@ -30,8 +30,10 @@ import xyz.nextalone.nagram.NaConfig
 import xyz.nextalone.nagram.helper.MessageHelper
 import java.util.Locale
 import java.util.WeakHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 private const val MAX_CONTEXT_MESSAGES = 5
 private const val TRANSLATION_PARALLELISM = 5
@@ -92,6 +94,8 @@ fun ChatActivity.translateMessages(
     // label and the bounded dispatcher are per chat and shared by every job of this dialog.
     val cancel = cancellationFlag()
     val status = progressDialog(autoTranslate)
+    val error = AtomicReference<Throwable?>()
+    val failed = ConcurrentLinkedQueue<MessageObject>()
     val timeline = this.messages.toList()
     val scope = translationScope()
 
@@ -99,12 +103,18 @@ fun ChatActivity.translateMessages(
         val progress = ProgressCounter(messages.size, status)
         try {
             messages.map { message ->
-                async { translateOne(message, target, timeline, cancel, status, progress) }
+                async {
+                    if (!translateOne(message, target, timeline, cancel, error, progress) && !cancel.get()) {
+                        failed.add(message)
+                    }
+                }
             }.awaitAll()
         } finally {
             messages.forEach { it.translating = false }
             UIUtil.runOnUIThread { if (!cancel.get()) status?.uDismiss() }
         }
+        // One error dialog per batch, retrying only the messages that failed.
+        error.get()?.let { handleError(target, it, failed.toList(), autoTranslate, cancel) }
     }
 }
 
@@ -200,8 +210,9 @@ internal suspend fun translateWithRetry(
         } catch (e: UnsupportedOperationException) {
             throw e
         } catch (e: Exception) {
-            if (++attempt >= 3 || cancel.get()) throw e
-            delay(1000L * attempt)
+            if (++attempt >= 5 || cancel.get()) throw e
+            // 1s, 2s, 4s, 8s: gives the network time to come back after the app is resumed
+            delay(1000L shl (attempt - 1))
         }
     }
 }
@@ -211,17 +222,17 @@ private suspend fun ChatActivity.translateOne(
     target: Locale,
     timeline: List<MessageObject>,
     cancel: AtomicBoolean,
-    status: AlertDialog?,
+    error: AtomicReference<Throwable?>,
     progress: ProgressCounter
-) {
+): Boolean {
     try {
         val context = translationContext(message, timeline)
         val db = TranslateDb.forLocale(target)
-        if (message.isPoll) {
-            translatePoll(message, target, context, db, cancel, status)
+        return if (message.isPoll) {
+            translatePoll(message, target, context, db, cancel, error)
         } else {
             translateFromCache(message, db) ||
-                translateText(message, target, context, cancel, status) ||
+                translateText(message, target, context, cancel, error) ||
                 // A message can be translatable for its extras alone (bot keyboard
                 // with no caption, link preview with no text); translateText
                 // already covered the extras of messages that do have text.
@@ -230,7 +241,8 @@ private suspend fun ChatActivity.translateOne(
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        reportError(target, listOf(message), e, cancel, status)
+        error.compareAndSet(null, e)
+        return false
     } finally {
         progress.tick()
         // The chat may be gone by now: a canceled job must not touch the message list.
@@ -260,7 +272,7 @@ private suspend fun ChatActivity.translateText(
     target: Locale,
     context: List<String>,
     cancel: AtomicBoolean,
-    status: AlertDialog?
+    error: AtomicReference<Throwable?>
 ): Boolean {
     val source = message.textSource() ?: return false
     if (cancel.get()) return false
@@ -271,7 +283,7 @@ private suspend fun ChatActivity.translateText(
     }.getOrElse {
         // Scope cancellation is not a provider failure: let it propagate so no dialog is shown.
         if (it is CancellationException) throw it
-        reportError(target, listOf(message), it, cancel, status)
+        error.compareAndSet(null, it)
         return false
     }
     if (translated.isBlank() || cancel.get()) return false
@@ -288,7 +300,7 @@ private suspend fun ChatActivity.translatePoll(
     context: List<String>,
     db: TranslateDb,
     cancel: AtomicBoolean,
-    status: AlertDialog?
+    error: AtomicReference<Throwable?>
 ): Boolean {
     MessageTransPoll.pollTextOf(message)?.let { skeleton ->
         MessageTransPoll.translateCached(skeleton, db)?.let { cached ->
@@ -306,7 +318,7 @@ private suspend fun ChatActivity.translatePoll(
     }.getOrElse {
         // Scope cancellation is not a provider failure: let it propagate so no dialog is shown.
         if (it is CancellationException) throw it
-        reportError(target, listOf(message), it, cancel, status)
+        error.compareAndSet(null, it)
         return false
     }
 
@@ -452,28 +464,27 @@ private suspend fun ChatActivity.translateExtras(
     return extrasOnly
 }
 
-private fun ChatActivity.reportError(
+// Shows at most one error dialog per batch, and Retry only re-translates the messages that failed.
+private fun ChatActivity.handleError(
     target: Locale,
-    messages: List<MessageObject>,
     error: Throwable,
-    cancel: AtomicBoolean,
-    status: AlertDialog?
+    failed: List<MessageObject>,
+    autoTranslate: Boolean,
+    cancel: AtomicBoolean
 ) {
-    // No progress dialog means this is a background auto-translation:
-    // don't interrupt reading with an error popup, just keep the original text.
-    if (status == null) {
+    // Background auto-translation: don't interrupt reading with an error popup, just keep the original text.
+    if (autoTranslate) {
         FileLog.e("auto translate failed: ${error.message ?: error.javaClass.simpleName}")
         return
     }
-    if (cancel.get()) return
-    status.uDismiss()
-    val activity = parentActivity ?: return
-    AlertUtil.showTransFailedDialog(
-        activity,
-        error is UnsupportedOperationException,
-        error.message ?: error.javaClass.simpleName
-    ) {
-        translateMessages(target, messages)
+    if (parentActivity != null && !cancel.get() && failed.isNotEmpty()) {
+        AlertUtil.showTransFailedDialog(
+            parentActivity,
+            error is UnsupportedOperationException,
+            error.message ?: error.javaClass.simpleName
+        ) {
+            translateMessages(target, failed)
+        }
     }
 }
 
