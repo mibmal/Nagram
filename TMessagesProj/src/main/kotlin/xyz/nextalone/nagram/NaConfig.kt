@@ -262,6 +262,12 @@ object NaConfig {
             ConfigItem.configTypeBool,
             false
         )
+    val translateChatNames: ConfigItem =
+        addConfig(
+            "TranslateChatNames",
+            ConfigItem.configTypeBool,
+            false
+        )
     val zalgoFilter =
         addConfig(
             "ZalgoFilter",

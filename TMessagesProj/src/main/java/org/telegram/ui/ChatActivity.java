@@ -3111,6 +3111,9 @@ public class ChatActivity extends BaseFragment implements
         // na: unread count
         getNotificationCenter().addObserver(this, NotificationCenter.dialogsUnreadCounterChanged);
 
+        // na: chat name translation
+        getNotificationCenter().addObserver(this, NotificationCenter.chatNameTranslated);
+
         if (chatMode != MODE_SCHEDULED) {
             if (threadMessageId == 0) {
                 observersGroup
@@ -3626,6 +3629,9 @@ public class ChatActivity extends BaseFragment implements
 
         // na: unread count
         getNotificationCenter().removeObserver(this, NotificationCenter.dialogsUnreadCounterChanged);
+
+        // na: chat name translation
+        getNotificationCenter().removeObserver(this, NotificationCenter.chatNameTranslated);
 
         getNotificationCenter().removePostponeNotificationsCallback(postponeNotificationsWhileLoadingCallback);
         getMessagesController().setLastCreatedDialogId(dialog_id, chatMode == MODE_SCHEDULED, false);
@@ -20335,7 +20341,7 @@ public class ChatActivity extends BaseFragment implements
                         if (chat == null) chat = currentChat;
                         avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat.scam, chat.fake, chat.verifiedExtended(), false, chat.emoji_status, animated);
                     } else {
-                        avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat.scam, currentChat.fake, currentChat.verifiedExtended(), false, currentChat.emoji_status, animated);
+                        avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(ChatNameTrans.name(currentAccount, currentChat))), currentChat.scam, currentChat.fake, currentChat.verifiedExtended(), false, currentChat.emoji_status, animated);
                     }
                 } else if (threadMessageId > 0) {
                     final TLRPC.User user = getMessagesController().getUser(threadMessageId);
@@ -20346,7 +20352,7 @@ public class ChatActivity extends BaseFragment implements
                     avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat.scam, chat.fake, chat.verifiedExtended(), false, chat.emoji_status, animated);
                 }
             } else {
-                avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat.scam, currentChat.fake, currentChat.verifiedExtended(), false, currentChat.emoji_status, animated);
+                avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(ChatNameTrans.name(currentAccount, currentChat))), currentChat.scam, currentChat.fake, currentChat.verifiedExtended(), false, currentChat.emoji_status, animated);
             }
         } else if (chatMode == MODE_WELCOME_MESSAGES) {
             avatarContainer.setTitle(getString(R.string.WelcomeMessage));
@@ -20411,7 +20417,7 @@ public class ChatActivity extends BaseFragment implements
         } else if (chatMode == MODE_PINNED) {
             avatarContainer.setTitle(LocaleController.formatPluralString("PinnedMessagesCount", getPinnedMessagesCount()));
         } else if (currentChat != null) {
-            avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat.scam, currentChat.fake, currentChat.verifiedExtended(), false, currentChat.emoji_status, animated);
+            avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(ChatNameTrans.name(currentAccount, currentChat))), currentChat.scam, currentChat.fake, currentChat.verifiedExtended(), false, currentChat.emoji_status, animated);
         } else if (currentUser != null) {
             if (currentUser.self) {
                 avatarContainer.setTitle(LocaleController.getString(R.string.SavedMessages));
@@ -25200,6 +25206,11 @@ public class ChatActivity extends BaseFragment implements
             } else if (id == NotificationCenter.dialogsUnreadCounterChanged) {
                 if (actionBar != null) { // NekoX
                     actionBar.unreadBadgeSetCount(getMessagesStorage().getMainUnreadCount());
+                }
+            } else if (id == NotificationCenter.chatNameTranslated) {
+                long did = (Long) args[0];
+                if (did == dialog_id) {
+                    updateTitle(true);
                 }
             }
         } else if (id == NotificationCenter.dialogTranslate) {
