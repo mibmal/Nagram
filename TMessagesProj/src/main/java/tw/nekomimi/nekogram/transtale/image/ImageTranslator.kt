@@ -43,7 +43,6 @@ import tw.nekomimi.nekogram.transtale.Translator
 import tw.nekomimi.nekogram.transtale.code2Locale
 import tw.nekomimi.nekogram.transtale.source.LLMTranslator
 import xyz.nextalone.nagram.NaConfig
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.Locale
 
