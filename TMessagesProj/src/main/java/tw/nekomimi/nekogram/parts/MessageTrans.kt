@@ -38,6 +38,12 @@ import java.util.concurrent.atomic.AtomicReference
 private const val MAX_CONTEXT_MESSAGES = 5
 private const val TRANSLATION_PARALLELISM = 5
 
+// Minutes to pause background auto-translation after it fails, indexed by NaConfig.autoTranslatePauseMinutes.
+val AUTO_TRANSLATE_PAUSE_MINUTES = intArrayOf(0, 1, 5, 15, 60)
+
+@Volatile
+private var autoTranslatePausedUntil = 0L
+
 /**
  * Collects the few messages following [message] so that an LLM translator can resolve the
  * pronouns and the context of the sentence being translated.
@@ -82,6 +88,8 @@ fun ChatActivity.translateMessages(
     autoTranslate: Boolean = false
 ) {
     if (messages.isEmpty() || messages.any { it.translating }) return
+    // While the translation server is unreachable, skip background auto-translation instead of failing every message.
+    if (autoTranslate && System.currentTimeMillis() < autoTranslatePausedUntil) return
 
     if (messages.all { it.translated }) {
         messages.forEach { clearTranslation(it) }
@@ -506,6 +514,10 @@ private fun ChatActivity.handleError(
     // Background auto-translation: don't interrupt reading with an error popup, just keep the original text.
     if (autoTranslate) {
         FileLog.e("auto translate failed: ${error.message ?: error.javaClass.simpleName}")
+        val minutes = AUTO_TRANSLATE_PAUSE_MINUTES.getOrElse(NaConfig.autoTranslatePauseMinutes.Int()) { 0 }
+        if (minutes > 0 && error !is UnsupportedOperationException) {
+            autoTranslatePausedUntil = System.currentTimeMillis() + minutes * 60_000L
+        }
         return
     }
     if (parentActivity != null && !cancel.get() && failed.isNotEmpty()) {

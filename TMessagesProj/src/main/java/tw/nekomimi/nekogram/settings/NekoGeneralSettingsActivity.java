@@ -318,7 +318,6 @@ private final AbstractConfigCell defaultHlsVideoQualityRow = cellGroup.appendCel
         xyz.nextalone.nagram.helper.MessageHistoryStore.clearAll(currentAccount);
         BulletinFactory.of(this).createSimpleBulletin(R.raw.done, LocaleController.getString(R.string.ClearKeptMessageHistoryDone)).show();
     }));
->>>>>>> origin/privacy
     private final AbstractConfigCell divider6 = cellGroup.appendCell(new ConfigCellDivider());
 
     private final AbstractConfigCell header7 = cellGroup.appendCell(new ConfigCellHeader(LocaleController.getString("General")));
