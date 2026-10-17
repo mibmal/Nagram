@@ -1388,9 +1388,9 @@ public class TranslateController extends BaseController {
                     final String text = texts.get(i).text;
                     TranslateAlert2.alternativeTranslate(text, null, language, (result, rateLimit) -> {
                         if (result != null) {
-                            final TLRPC.TL_textWithEntities res = new TLRPC.TL_textWithEntities();
-                            res.text = result;
-                            results[index] = res;
+                            final TLRPC.TL_textWithEntities translated = new TLRPC.TL_textWithEntities();
+                            translated.text = result;
+                            results[index] = translated;
                         }
                         if (--left[0] == 0) {
                             done.run(new ArrayList<>(Arrays.asList(results)), language);
