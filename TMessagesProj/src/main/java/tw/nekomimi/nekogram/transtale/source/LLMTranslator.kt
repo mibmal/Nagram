@@ -495,7 +495,9 @@ object LLMTranslator : Translator {
         ).removeSuffix("/")
         val baseUrl = rawUrl.removeSuffix("/chat/completions").removeSuffix("/messages").removeSuffix("/responses")
         val model = NaConfig.llmVisionModel.String()?.takeIf { !it.isBlank() } ?: getModel(provider)
-        val apiKey = getNextApiKey()
+        // A self-hosted endpoint (Ollama & co) serves no key check; demanding one
+        // would turn every vision call into a fallback to the on-device OCR.
+        val apiKey = if (selfHosted()) "" else getNextApiKey()
         val language = getLanguageName(to.language)
 
         val requestBody = buildJsonObject {

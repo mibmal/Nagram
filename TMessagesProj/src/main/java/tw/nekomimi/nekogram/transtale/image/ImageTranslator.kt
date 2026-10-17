@@ -185,12 +185,13 @@ object ImageTranslator {
                 status.text = LocaleController.getString(R.string.TranslateImageReading)
                 val to = NekoConfig.translateToLang.String()?.code2Locale ?: LocaleController.getInstance().currentLocale
                 // LLM first: a vision model reads and translates the image in one
-                // pass, so the phone's CPU never runs the OCR pipeline. The
-                // translate lock applies here too: a locked build only lets a
-                // self-hosted endpoint see the picture.
-                val llmAllowed = NekoConfig.translationProvider.Int() == Translator.providerLLM &&
-                    (!NaConfig.translateLockToLibre.Bool() || LLMTranslator.selfHosted())
-                if (llmAllowed) {
+                // pass, so the phone's CPU never runs the OCR pipeline. Used when
+                // the text provider is the LLM or a vision model is configured
+                // explicitly; the translate lock applies here too -- a locked
+                // build only lets a self-hosted endpoint see the picture.
+                val visionConfigured = !NaConfig.llmVisionModel.String().isNullOrBlank() ||
+                    NekoConfig.translationProvider.Int() == Translator.providerLLM
+                if (visionConfigured && (!NaConfig.translateLockToLibre.Bool() || LLMTranslator.selfHosted())) {
                     val llmPairs = runCatching { readWithLlm(to) }
                         .onFailure { FileLog.e("[ImageTranslator] LLM image read failed, falling back to on-device OCR", it) }
                         .getOrNull()
