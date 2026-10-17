@@ -189,6 +189,28 @@ object LLMTranslator : Translator {
         return if (value.isNullOrBlank()) providerModels[provider] ?: "gpt-4.1-mini" else value
     }
 
+    /**
+     * Whether the active LLM endpoint is one of our own servers, for the
+     * translateLockToLibre guard: a *.maley.me host or a private/LAN IP never
+     * sends message text to a third party, so the LLM provider stays allowed
+     * there. Any preset provider or public host fails this and the lock holds.
+     */
+    @JvmStatic
+    fun selfHosted(): Boolean {
+        val provider = NaConfig.llmProvider.Int()
+        if (providerUrls.containsKey(provider)) return false // preset = third party
+        val url = (NaConfig.llmApiUrl.String() ?: "").trim().takeIf { it.isNotEmpty() } ?: return false
+        val host = try {
+            java.net.URI(url).host ?: return false
+        } catch (_: Exception) {
+            return false
+        }
+        if (host.equals("maley.me", true) || host.endsWith(".maley.me", true)) return true
+        // RFC1918 + loopback: the LAN/VPN endpoints.
+        val private = Regex("""^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|localhost$)""")
+        return private.containsMatchIn(host)
+    }
+
     private fun calculateBackoff(attempt: Int): Long {
         val exponentialDelay = BASE_WAIT * (2.0.pow(attempt.toDouble())).toLong()
         val jitter = Random.nextLong(0, 1000)
