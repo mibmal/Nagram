@@ -56,6 +56,7 @@ import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Premium.PremiumGradient;
 
 import xyz.nextalone.nagram.NaConfig;
+import tw.nekomimi.nekogram.parts.ChatNameTrans;
 
 public class GroupCreateUserCell extends FrameLayout {
 
@@ -491,7 +492,7 @@ public class GroupCreateUserCell extends FrameLayout {
                         }
                     }
                     if (!continueUpdate && currentName == null && lastName != null && (mask & MessagesController.UPDATE_MASK_NAME) != 0) {
-                        newName = currentChat.title;
+                        newName = ChatNameTrans.name(currentAccount, currentChat);
                         if (!newName.equals(lastName)) {
                             continueUpdate = true;
                         }
@@ -507,7 +508,7 @@ public class GroupCreateUserCell extends FrameLayout {
                     lastName = null;
                     nameTextView.setText(currentName, true);
                 } else {
-                    lastName = newName == null ? currentChat.title : newName;
+                    lastName = newName == null ? ChatNameTrans.name(currentAccount, currentChat) : newName;
                     nameTextView.setText(lastName);
                 }
 

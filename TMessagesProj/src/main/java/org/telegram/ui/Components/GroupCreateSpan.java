@@ -29,6 +29,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import androidx.annotation.NonNull;
 import androidx.core.graphics.ColorUtils;
 
+import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.Emoji;
@@ -41,6 +42,7 @@ import org.telegram.messenger.UserObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.GroupCreateUserCell;
+import tw.nekomimi.nekogram.parts.ChatNameTrans;
 
 public class GroupCreateSpan extends View {
 
@@ -196,7 +198,7 @@ public class GroupCreateSpan extends View {
             TLRPC.Chat chat = (TLRPC.Chat) object;
             avatarDrawable.setInfo(chat);
             uid = -chat.id;
-            firstName = chat.title;
+            firstName = ChatNameTrans.name(UserConfig.selectedAccount, chat);
             imageLocation = ImageLocation.getForUserOrChat(chat, ImageLocation.TYPE_SMALL);
             imageParent = chat;
         } else if (object instanceof TLRPC.TL_help_country) {

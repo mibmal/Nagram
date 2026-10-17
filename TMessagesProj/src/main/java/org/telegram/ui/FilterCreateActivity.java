@@ -111,7 +111,7 @@ import java.util.Collections;
 import tw.nekomimi.nekogram.folder.FolderIconHelper;
 import tw.nekomimi.nekogram.folder.IconSelectorAlert;
 
-public class FilterCreateActivity extends BaseFragment {
+public class FilterCreateActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
 
     private RecyclerListView listView;
     private ListAdapter adapter;
@@ -229,6 +229,7 @@ public class FilterCreateActivity extends BaseFragment {
     @Override
     public boolean onFragmentCreate() {
         updateRows();
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.chatNameTranslated);
         return super.onFragmentCreate();
     }
 
@@ -261,8 +262,25 @@ public class FilterCreateActivity extends BaseFragment {
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.chatNameTranslated);
         if (requestingInvitesReqId != 0) {
             getConnectionsManager().cancelRequest(requestingInvitesReqId, true);
+        }
+    }
+
+    @Override
+    public void didReceivedNotification(int id, Object... args) {
+        if (id == NotificationCenter.chatNameTranslated) {
+            // na: a chat title translation arrived; refresh the visible chat rows.
+            if (listView != null) {
+                int count = listView.getChildCount();
+                for (int a = 0; a < count; a++) {
+                    View child = listView.getChildAt(a);
+                    if (child instanceof org.telegram.ui.Cells.UserCell) {
+                        ((org.telegram.ui.Cells.UserCell) child).update(MessagesController.UPDATE_MASK_NAME);
+                    }
+                }
+            }
         }
     }
 

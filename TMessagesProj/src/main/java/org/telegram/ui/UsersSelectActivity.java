@@ -385,6 +385,7 @@ public class UsersSelectActivity extends BaseFragment implements NotificationCen
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.contactsDidLoad);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.updateInterfaces);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.chatDidCreated);
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.chatNameTranslated);
         return super.onFragmentCreate();
     }
 
@@ -394,6 +395,7 @@ public class UsersSelectActivity extends BaseFragment implements NotificationCen
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.contactsDidLoad);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.updateInterfaces);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.chatDidCreated);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.chatNameTranslated);
     }
 
     @Override
@@ -947,6 +949,17 @@ public class UsersSelectActivity extends BaseFragment implements NotificationCen
             }
         } else if (id == NotificationCenter.chatDidCreated) {
             removeSelfFromStack();
+        } else if (id == NotificationCenter.chatNameTranslated) {
+            // na: a chat title translation arrived; refresh the visible name rows.
+            if (listView != null) {
+                int count = listView.getChildCount();
+                for (int a = 0; a < count; a++) {
+                    View child = listView.getChildAt(a);
+                    if (child instanceof GroupCreateUserCell) {
+                        ((GroupCreateUserCell) child).update(MessagesController.UPDATE_MASK_NAME);
+                    }
+                }
+            }
         }
     }
 

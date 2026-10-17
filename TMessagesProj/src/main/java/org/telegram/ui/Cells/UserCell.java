@@ -63,6 +63,7 @@ import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.NotificationsSettingsActivity;
 import org.telegram.ui.Stories.StoriesListPlaceProvider;
 import org.telegram.ui.Stories.StoriesUtilities;
+import tw.nekomimi.nekogram.parts.ChatNameTrans;
 
 public class UserCell extends FrameLayout implements NotificationCenter.NotificationCenterDelegate, Theme.Colorable {
 
@@ -573,7 +574,7 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
                 if (currentUser != null) {
                     newName = AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(UserObject.getUserName(currentUser)));
                 } else {
-                    newName = AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat == null ? "" : currentChat.title));
+                    newName = AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat == null ? "" : ChatNameTrans.name(currentAccount, currentChat)));
                 }
                 if (!newName.equals(lastName)) {
                     continueUpdate = true;
@@ -663,7 +664,7 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
             if (currentUser != null) {
                 lastName = newName == null ? UserObject.getUserName(currentUser) : AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(newName));
             } else if (currentChat != null) {
-                lastName = AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(newName == null ? currentChat.title : newName));
+                lastName = AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(newName == null ? ChatNameTrans.name(currentAccount, currentChat) : newName));
             } else {
                 lastName = "";
             }
