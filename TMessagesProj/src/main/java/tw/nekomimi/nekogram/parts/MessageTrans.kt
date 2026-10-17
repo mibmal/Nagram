@@ -8,6 +8,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -183,6 +184,28 @@ private class ProgressCounter(private val total: Int, private val status: AlertD
     }
 }
 
+// Retries transient failures (e.g. "HTTP 0" network drops) with the same provider.
+internal suspend fun translateWithRetry(
+    target: Locale,
+    text: String,
+    context: List<String>,
+    cancel: AtomicBoolean
+): String {
+    var attempt = 0
+    while (true) {
+        try {
+            return Translator.translate(target, text, context)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: UnsupportedOperationException) {
+            throw e
+        } catch (e: Exception) {
+            if (++attempt >= 3 || cancel.get()) throw e
+            delay(1000L * attempt)
+        }
+    }
+}
+
 private suspend fun ChatActivity.translateOne(
     message: MessageObject,
     target: Locale,
@@ -244,7 +267,7 @@ private suspend fun ChatActivity.translateText(
 
     val separator = MessageTransText.separatorFor(false)
     val translated = runCatching {
-        Translator.translate(target, MessageTransText.queryTextOf(source), context)
+        translateWithRetry(target, MessageTransText.queryTextOf(source), context, cancel)
     }.getOrElse {
         // Scope cancellation is not a provider failure: let it propagate so no dialog is shown.
         if (it is CancellationException) throw it
@@ -279,7 +302,7 @@ private suspend fun ChatActivity.translatePoll(
     // above may already be partially merged.
     val pollText = MessageTransPoll.pollTextOf(message) ?: return false
     val translated = runCatching {
-        MessageTransPoll.translate(pollText, target, context, db)
+        MessageTransPoll.translate(pollText, target, context, db, cancel)
     }.getOrElse {
         // Scope cancellation is not a provider failure: let it propagate so no dialog is shown.
         if (it is CancellationException) throw it
