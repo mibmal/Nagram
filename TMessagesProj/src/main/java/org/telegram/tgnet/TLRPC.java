@@ -57559,6 +57559,8 @@ public class TLRPC {
         public TL_textWithEntities summaryText; //custom
         public String translatedSummaryLanguage; //custom
         public TL_textWithEntities translatedSummaryText; //custom
+        // Translations of the inline keyboard bot buttons (row-major over reply_markup), Nagram
+        public TranslateController.ButtonsText translatedButtons; //custom
         public int ephemeralAnchorMsgId; // custom
         public long ephemeralReceiverBotId; //custom
         public boolean welcomeTemplateFirst; // custom

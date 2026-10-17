@@ -30,6 +30,7 @@ import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.Vector;
 import org.telegram.tgnet.tl.TL_iv;
+import org.telegram.tgnet.tl.TL_keyboard;
 import org.telegram.tgnet.tl.TL_stories;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.Bulletin;
@@ -190,6 +191,7 @@ public class TranslateController extends BaseController {
                 !TextUtils.isEmpty(messageObject.messageOwner.message) ||
                 MessageObject.getMedia(messageObject) instanceof TLRPC.TL_messageMediaPoll ||
                 messageObject.messageOwner.rich_message != null ||
+                hasBotButtonsWithText(messageObject) ||
                 (
                     messageObject.messageOwner.voiceTranscriptionOpen &&
                     !TextUtils.isEmpty(messageObject.messageOwner.voiceTranscription) &&
@@ -197,6 +199,25 @@ public class TranslateController extends BaseController {
                 )
             )
         );
+    }
+
+    /** Nagram: the message has an inline bot keyboard with at least one labelled button. */
+    public static boolean hasBotButtonsWithText(MessageObject messageObject) {
+        if (messageObject == null || messageObject.messageOwner == null) {
+            return false;
+        }
+        if (!(messageObject.messageOwner.reply_markup instanceof TLRPC.TL_replyInlineMarkup)) {
+            return false;
+        }
+        final TLRPC.TL_replyInlineMarkup markup = (TLRPC.TL_replyInlineMarkup) messageObject.messageOwner.reply_markup;
+        for (int a = 0; a < markup.rows.size(); a++) {
+            for (int b = 0; b < markup.rows.get(a).buttons.size(); b++) {
+                if (!TextUtils.isEmpty(markup.rows.get(a).buttons.get(b).text)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public boolean isDialogTranslatable(long dialogId) {
@@ -771,6 +792,47 @@ public class TranslateController extends BaseController {
             } else if (keepReply) {
                 keepReplyMessage(messageObject);
             }
+
+            // Nagram: translate the labels of the inline bot buttons (channel link
+            // buttons like "View message", bot keyboards) together with the message.
+            if (hasBotButtonsWithText(finalMessageObject) && (
+                finalMessageObject.messageOwner.translatedButtons == null ||
+                !language.equals(finalMessageObject.messageOwner.translatedButtons.lang)
+            )) {
+                pushButtonsToTranslate(finalMessageObject, language, (id, buttonsText, lang) -> {
+                    if (finalMessageObject.getId() != id) {
+                        FileLog.e("wtf, asked to translate " + finalMessageObject.getId() + " buttons but got " + id + "!");
+                    }
+                    if (buttonsText != null) {
+                        finalMessageObject.messageOwner.translatedButtons = buttonsText;
+                        if (finalMessageObject.messageOwner.translatedToLanguage == null) {
+                            finalMessageObject.messageOwner.translatedToLanguage = lang;
+                        }
+                    }
+                    getMessagesStorage().updateMessageCustomParams(dialogId, finalMessageObject.messageOwner);
+                    if (finalMessageObject.updateTranslation()) {
+                        NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, 0);
+                    }
+                    NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.messageTranslated, finalMessageObject);
+
+                    ArrayList<MessageObject> dialogMessages = messagesController.dialogMessage.get(dialogId);
+                    if (dialogMessages != null) {
+                        for (int i = 0; i < dialogMessages.size(); ++i) {
+                            MessageObject dialogMessage = dialogMessages.get(i);
+                            if (dialogMessage != null && dialogMessage.getId() == finalMessageObject.getId()) {
+                                dialogMessage.messageOwner.translatedButtons = buttonsText;
+                                if (dialogMessage.messageOwner.translatedToLanguage == null) {
+                                    dialogMessage.messageOwner.translatedToLanguage = lang;
+                                }
+                                if (dialogMessage.updateTranslation()) {
+                                    NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, 0);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
         }
     }
 
@@ -786,6 +848,7 @@ public class TranslateController extends BaseController {
         messageObject.messageOwner.translatedText = null;
         messageObject.messageOwner.translatedVoiceTranscription = null;
         messageObject.messageOwner.translatedPoll = null;
+        messageObject.messageOwner.translatedButtons = null;
         messageObject.messageOwner.summaryText = null;
         messageObject.messageOwner.translatedSummaryText = null;
         messageObject.messageOwner.translatedSummaryLanguage = null;
@@ -1051,6 +1114,9 @@ public class TranslateController extends BaseController {
             if (TextUtils.isEmpty(source.text)) return;
         } else {
             source.text = message.messageOwner.message;
+            // Nagram: messages whose only text is on the bot buttons have nothing
+            // to send here; the buttons are translated by pushButtonsToTranslate.
+            if (TextUtils.isEmpty(source.text)) return;
             source.entities = message.messageOwner.entities;
         }
 
@@ -1217,6 +1283,152 @@ public class TranslateController extends BaseController {
             };
             AndroidUtilities.runOnUIThread(pendingTranslation.runnable, pendingTranslation.delay);
             pendingTranslation.delay /= 2;
+        }
+    }
+
+    private final Set<Integer> loadingButtonTranslations = new HashSet<>();
+
+    /**
+     * Nagram: translates the labels of the inline bot buttons. The texts are sent
+     * as raw strings (the text mode of messages.translateText, like the voice
+     * transcription path) since the server only translates the message body when
+     * message ids are given.
+     */
+    private void pushButtonsToTranslate(
+        MessageObject message,
+        String language,
+        Utilities.Callback3<Integer, ButtonsText, String> callback
+    ) {
+        if (message == null || message.messageOwner == null || message.getId() < 0 || callback == null) {
+            return;
+        }
+        final TLRPC.TL_replyInlineMarkup markup = message.messageOwner.reply_markup instanceof TLRPC.TL_replyInlineMarkup ? (TLRPC.TL_replyInlineMarkup) message.messageOwner.reply_markup : null;
+        if (markup == null) {
+            return;
+        }
+
+        final ArrayList<TLRPC.TL_textWithEntities> texts = new ArrayList<>();
+        final ArrayList<Integer> positions = new ArrayList<>();
+        int count = 0;
+        for (int a = 0; a < markup.rows.size(); a++) {
+            for (int b = 0; b < markup.rows.get(a).buttons.size(); b++) {
+                final String text = markup.rows.get(a).buttons.get(b).text;
+                if (!TextUtils.isEmpty(text)) {
+                    final TLRPC.TL_textWithEntities source = new TLRPC.TL_textWithEntities();
+                    source.text = text;
+                    texts.add(source);
+                    positions.add(count);
+                }
+                count++;
+            }
+        }
+        if (texts.isEmpty()) {
+            return;
+        }
+
+        final int id = message.getId();
+        if (!loadingButtonTranslations.add(id)) {
+            return;
+        }
+        final String toLang = normalizeLanguage(language);
+        Utilities.Callback2<ArrayList<TLRPC.TL_textWithEntities>, String> done = (translated, lang) -> {
+            if (!loadingButtonTranslations.remove(id)) {
+                return;
+            }
+            if (translated == null || translated.size() != texts.size()) {
+                callback.run(id, null, language);
+                return;
+            }
+            final ButtonsText buttonsText = new ButtonsText();
+            buttonsText.lang = lang;
+            for (int i = 0; i < count; i++) {
+                buttonsText.texts.add(new TLRPC.TL_textWithEntities());
+            }
+            for (int i = 0; i < translated.size(); i++) {
+                if (translated.get(i) != null) {
+                    buttonsText.texts.set(positions.get(i), TranslateAlert2.preprocess(texts.get(i), translated.get(i)));
+                }
+            }
+            callback.run(id, buttonsText, lang);
+        };
+
+        final String method = getMessagesController().translationsAutoEnabled;
+        if ("alternative".equals(method) || "system".equals(method)) {
+            final TLRPC.TL_textWithEntities[] results = new TLRPC.TL_textWithEntities[texts.size()];
+            final int[] left = {texts.size()};
+            for (int i = 0; i < texts.size(); i++) {
+                final int index = i;
+                final String text = texts.get(i).text;
+                TranslateAlert2.alternativeTranslate(text, null, language, (result, rateLimit) -> {
+                    if (result != null) {
+                        final TLRPC.TL_textWithEntities res = new TLRPC.TL_textWithEntities();
+                        res.text = result;
+                        results[index] = res;
+                    }
+                    if (--left[0] == 0) {
+                        done.run(new ArrayList<>(Arrays.asList(results)), language);
+                    }
+                });
+            }
+            return;
+        }
+
+        final TLRPC.TL_messages_translateText req = new TLRPC.TL_messages_translateText();
+        req.flags |= 2;
+        req.text.addAll(texts);
+        req.to_lang = toLang;
+        getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
+            if (res instanceof TLRPC.TL_messages_translateResult) {
+                done.run(((TLRPC.TL_messages_translateResult) res).result, language);
+            } else if (err != null && "TRANSLATIONS_DISABLED_ALT".equalsIgnoreCase(err.text)) {
+                final TLRPC.TL_textWithEntities[] results = new TLRPC.TL_textWithEntities[texts.size()];
+                final int[] left = {texts.size()};
+                for (int i = 0; i < texts.size(); i++) {
+                    final int index = i;
+                    final String text = texts.get(i).text;
+                    TranslateAlert2.alternativeTranslate(text, null, language, (result, rateLimit) -> {
+                        if (result != null) {
+                            final TLRPC.TL_textWithEntities res = new TLRPC.TL_textWithEntities();
+                            res.text = result;
+                            results[index] = res;
+                        }
+                        if (--left[0] == 0) {
+                            done.run(new ArrayList<>(Arrays.asList(results)), language);
+                        }
+                    });
+                }
+            } else if (err != null && "QUOTA_EXCEEDED".equals(err.text)) {
+                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.showBulletin, Bulletin.TYPE_ERROR, getString(R.string.TranslationFailedAlert1));
+                done.run(null, language);
+            } else {
+                done.run(null, language);
+            }
+        }));
+    }
+
+    /** Nagram: translated inline bot button labels, aligned with reply_markup buttons row-major. */
+    public static class ButtonsText extends TLObject {
+        public static final int constructor = 0x7D3F9A01;
+
+        public String lang;
+        public ArrayList<TLRPC.TL_textWithEntities> texts = new ArrayList<>();
+
+        public static ButtonsText TLdeserialize(InputSerializedData stream, int constructor, boolean exception) {
+            final ButtonsText result = ButtonsText.constructor != constructor ? null : new ButtonsText();
+            return TLdeserialize(ButtonsText.class, result, stream, constructor, exception);
+        }
+
+        @Override
+        public void readParams(InputSerializedData stream, boolean exception) {
+            lang = stream.readString(exception);
+            texts = Vector.deserialize(stream, TLRPC.TL_textWithEntities::TLdeserialize, exception);
+        }
+
+        @Override
+        public void serializeToStream(OutputSerializedData stream) {
+            stream.writeInt32(constructor);
+            stream.writeString(lang);
+            Vector.serialize(stream, texts);
         }
     }
 
