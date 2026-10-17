@@ -2656,6 +2656,50 @@ public class LimitReachedBottomSheet extends BottomSheetWithRecyclerListView imp
         }
     }
 
+    // Personal-build diagnostic: the server says the account is in too many groups/channels,
+    // so show what the server and the app actually count for the active account.
+    private String buildCommunitiesDiagnostic(TLRPC.TL_messages_inactiveChats chats) {
+        int channels = 0, supergroups = 0, groups = 0, left = 0;
+        for (TLRPC.Chat chat : chats.chats) {
+            if (chat.left) left++;
+            if (ChatObject.isMegagroup(chat)) supergroups++;
+            else if (ChatObject.isChannel(chat)) channels++;
+            else groups++;
+        }
+        int localChats = 0, localArchived = 0;
+        MessagesController controller = MessagesController.getInstance(currentAccount);
+        for (TLRPC.Dialog dialog : new ArrayList<>(controller.getAllDialogs())) {
+            if (!DialogObject.isChatDialog(dialog.id)) continue;
+            TLRPC.Chat chat = controller.getChat(-dialog.id);
+            if (chat == null || chat.left || ChatObject.isNotInChat(chat)) continue;
+            localChats++;
+            if (dialog.folder_id == 1) localArchived++;
+        }
+        TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
+        String phone = self != null && self.phone != null && self.phone.length() > 4
+                ? "…" + self.phone.substring(self.phone.length() - 4) : "?";
+        return "Server error: CHANNELS_TOO_MUCH"
+                + "\n\nAccount slot: " + currentAccount + " (phone " + phone + ")"
+                + "\nReal Premium: " + (self != null && self.premium)
+                + ", Local Premium: " + tw.nekomimi.nekogram.NekoConfig.localPremium.Bool()
+                + "\nServer limits: " + controller.channelsLimitDefault + " / " + controller.channelsLimitPremium
+                + "\n\nServer list (getInactiveChannels): " + chats.chats.size()
+                + "\n  channels " + channels + ", supergroups " + supergroups + ", groups " + groups + ", marked left " + left
+                + "\n\nApp chat list: " + localChats + " groups/channels (" + localArchived + " archived)";
+    }
+
+    private boolean diagnosticShown;
+
+    private void showCommunitiesDiagnostic(String text) {
+        if (diagnosticShown || getContext() == null) return;
+        diagnosticShown = true;
+        new AlertDialog.Builder(getContext(), resourcesProvider)
+                .setTitle("Join limit diagnostic")
+                .setMessage(text)
+                .setPositiveButton(LocaleController.getString(R.string.OK), null)
+                .show();
+    }
+
     private void loadInactiveChannels() {
         loading = true;
         updateRows();
@@ -2689,7 +2733,9 @@ public class LimitReachedBottomSheet extends BottomSheetWithRecyclerListView imp
                         signatures.add(LocaleController.formatString("InactiveChatSignature", R.string.InactiveChatSignature, members, dateFormat));
                     }
                 }
+                final String diagnostic = buildCommunitiesDiagnostic(chats);
                 AndroidUtilities.runOnUIThread(() -> {
+                    showCommunitiesDiagnostic(diagnostic);
                     inactiveChatsSignatures.clear();
                     inactiveChats.clear();
                     inactiveChatsSignatures.addAll(signatures);

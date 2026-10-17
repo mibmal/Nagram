@@ -18644,6 +18644,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         } else {
             timeString = LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000);
         }
+        if (xyz.nextalone.nagram.helper.MessageHistoryStore.keepDeletedEnabled() && xyz.nextalone.nagram.helper.MessageHistoryStore.isDeleted(currentAccount, currentMessageObject)) {
+            // Personal build: mark messages that were deleted by the sender but kept locally.
+            timeString = "\uD83D\uDDD1 " + timeString;
+        }
         if (currentMessageObject.messageOwner.video_processing_pending) {
             timeString = formatString(R.string.ScheduledTimeApprox, timeString);
         }

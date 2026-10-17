@@ -825,6 +825,10 @@
         <meta-data
             android:name="firebase_crashlytics_collection_enabled"
             android:value="false" />
+        <!-- Don't mint an FCM token at startup; only the FCM push type asks for one explicitly -->
+        <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="false" />
         <meta-data
             android:name="google_analytics_adid_collection_enabled"
             android:value="false" />

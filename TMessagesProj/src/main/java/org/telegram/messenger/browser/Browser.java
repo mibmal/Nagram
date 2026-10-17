@@ -303,6 +303,7 @@ public class Browser {
         if (context == null || uri == null) {
             return;
         }
+        uri = xyz.nextalone.nagram.helper.PrivacyHelper.cleanUri(uri);
         final int currentAccount = UserConfig.selectedAccount;
         boolean[] forceBrowser = new boolean[]{false};
         boolean internalUri = isInternalUri(uri, forceBrowser);

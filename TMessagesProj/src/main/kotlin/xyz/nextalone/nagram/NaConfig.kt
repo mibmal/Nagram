@@ -435,7 +435,7 @@ object NaConfig {
         addConfig(
             "DoNotShareMyPhoneNumber",
             ConfigItem.configTypeBool,
-            false
+            true
         )
     val defaultDeleteMenu =
         addConfig(
@@ -623,7 +623,7 @@ object NaConfig {
         addConfig(
             "PushServiceType",
             ConfigItem.configTypeInt,
-            1
+            2
         )
     val pushServiceTypeInAppDialog =
         addConfig(
@@ -635,7 +635,7 @@ object NaConfig {
         addConfig(
             "PushServiceTypeUnifiedGateway",
             ConfigItem.configTypeString,
-            "https://p2p.hoyolab.pp.ua/"
+            "https://push.maley.me/"
         )
     val pushServiceTypeUnifiedSimple =
         addConfig(
@@ -683,13 +683,19 @@ object NaConfig {
         addConfig(
             "DisableAutoWebLogin",
             ConfigItem.configTypeBool,
-            false
+            true
         )
     val sentryAnalytics =
         addConfig(
             "SentryAnalytics",
             ConfigItem.configTypeBool,
-            true
+            false
+        )
+    val firebaseCrashlytics =
+        addConfig(
+            "FirebaseCrashlytics",
+            ConfigItem.configTypeBool,
+            tw.nekomimi.nekogram.helpers.AnalyticsHelper.CRASHLYTICS_DEFAULT
         )
     val firebaseCrashlytics =
         addConfig(
@@ -1077,13 +1083,63 @@ object NaConfig {
         addConfig(
             "LibreTranslateApi",
             ConfigItem.configTypeString,
-            ""
+            "https://translate-lan.maley.me"
         )
     val libreTranslateApiKey =
         addConfig(
             "LibreTranslateApiKey",
             ConfigItem.configTypeString,
             ""
+        )
+
+    // Personal privacy build options
+    val stripTrackingParams =
+        addConfig(
+            "StripTrackingParams",
+            ConfigItem.configTypeBool,
+            true
+        )
+    val stripTrackingParamsExtra =
+        addConfig(
+            "StripTrackingParamsExtra",
+            ConfigItem.configTypeString,
+            ""
+        )
+    val stripFileMetadata =
+        addConfig(
+            "StripFileMetadata",
+            ConfigItem.configTypeBool,
+            true
+        )
+    val translateLockToLibre =
+        addConfig(
+            "TranslateLockToLibre",
+            ConfigItem.configTypeBool,
+            true
+        )
+    val hideInRecents =
+        addConfig(
+            "HideInRecents",
+            ConfigItem.configTypeBool,
+            false
+        )
+    val autoTranslatePauseMinutes =
+        addConfig(
+            "AutoTranslatePauseMinutes",
+            ConfigItem.configTypeInt,
+            2 // index into AUTO_TRANSLATE_PAUSE_MINUTES: off, 1, 5, 15, 60
+        )
+    val keepDeletedMessages =
+        addConfig(
+            "KeepDeletedMessages",
+            ConfigItem.configTypeBool,
+            true
+        )
+    val keepEditHistory =
+        addConfig(
+            "KeepEditHistory",
+            ConfigItem.configTypeBool,
+            true
         )
     val deepLFormality =
         addConfig(

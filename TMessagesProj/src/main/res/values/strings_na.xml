@@ -416,4 +416,23 @@
     <string name="CommunityAvatarTapActionCommunity">Always Open Community</string>
     <string name="CommunityAvatarTapActionChat">Always Open Chat</string>
     <string name="CommunityAvatarTapActionArrow">Open Community Only with the Bottom-Right Arrow</string>
+    <string name="StripTrackingParams">Remove tracking from links</string>
+    <string name="StripTrackingParamsAbout">Strip utm_, fbclid, gclid and similar parameters from links you send and open</string>
+    <string name="StripTrackingParamsExtra">Extra link parameters to remove</string>
+    <string name="StripFileMetadata">Remove metadata from images sent as files</string>
+    <string name="StripFileMetadataAbout">Remove GPS location, camera model and timestamps from JPEG, PNG and WebP files before upload. Your original file is not changed.</string>
+    <string name="HideInRecents">Hide chats in recent apps</string>
+    <string name="HideInRecentsAbout">Show a blank preview in the app switcher (Android 13+). Screenshots still work.</string>
+    <string name="TranslateLockToLibre">Only translate via LibreTranslate</string>
+    <string name="TranslateLockToLibreAbout">Refuse to send message text to any other translation provider</string>
+    <string name="TranslateLockedToLibre">Translation is locked to your LibreTranslate server. Switch the provider back to LibreTranslate, or turn off the lock in Privacy settings.</string>
+    <string name="AutoTranslatePauseMinutes">Pause auto-translate after a failure</string>
+    <string name="KeepDeletedMessages">Keep deleted messages</string>
+    <string name="KeepDeletedMessagesAbout">When someone deletes a message, keep it on this device and mark it with a bin icon. Stored only on your phone.</string>
+    <string name="KeepEditHistory">Keep edit history</string>
+    <string name="KeepEditHistoryAbout">Save earlier versions of edited messages. Long-press a message and choose Edit history.</string>
+    <string name="ClearKeptMessageHistory">Clear kept deleted and edited messages</string>
+    <string name="ClearKeptMessageHistoryDone">Kept message history cleared</string>
+    <string name="EditHistory">Edit history</string>
+    <string name="EditHistoryCurrent">Current</string>
 </resources>

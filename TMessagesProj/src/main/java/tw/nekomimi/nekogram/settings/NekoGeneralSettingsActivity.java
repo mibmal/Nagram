@@ -46,6 +46,7 @@ import org.telegram.ui.Cells.ShadowSectionCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextDetailSettingsCell;
 import org.telegram.ui.Cells.TextSettingsCell;
+import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.SeekBarView;
@@ -299,6 +300,25 @@ private final AbstractConfigCell defaultHlsVideoQualityRow = cellGroup.appendCel
     private final AbstractConfigCell disableAutoWebLoginRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getDisableAutoWebLogin()));
     private final AbstractConfigCell sentryAnalyticsRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getSentryAnalytics()));
     private final AbstractConfigCell firebaseCrashlyticsRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getFirebaseCrashlytics()));
+    private final AbstractConfigCell stripTrackingParamsRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getStripTrackingParams(), LocaleController.getString(R.string.StripTrackingParamsAbout)));
+    private final AbstractConfigCell stripTrackingParamsExtraRow = cellGroup.appendCell(new ConfigCellTextInput(null, NaConfig.INSTANCE.getStripTrackingParamsExtra(), "ref, source", null));
+    private final AbstractConfigCell stripFileMetadataRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getStripFileMetadata(), LocaleController.getString(R.string.StripFileMetadataAbout)));
+    private final AbstractConfigCell hideInRecentsRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getHideInRecents(), LocaleController.getString(R.string.HideInRecentsAbout)));
+    private final AbstractConfigCell translateLockToLibreRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getTranslateLockToLibre(), LocaleController.getString(R.string.TranslateLockToLibreAbout)));
+    private final AbstractConfigCell autoTranslatePauseMinutesRow = cellGroup.appendCell(new ConfigCellSelectBox(null, NaConfig.INSTANCE.getAutoTranslatePauseMinutes(), new String[]{
+            LocaleController.getString(R.string.Disable),
+            LocaleController.formatPluralString("Minutes", 1),
+            LocaleController.formatPluralString("Minutes", 5),
+            LocaleController.formatPluralString("Minutes", 15),
+            LocaleController.formatPluralString("Minutes", 60),
+    }, null));
+    private final AbstractConfigCell keepDeletedMessagesRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getKeepDeletedMessages(), LocaleController.getString(R.string.KeepDeletedMessagesAbout)));
+    private final AbstractConfigCell keepEditHistoryRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getKeepEditHistory(), LocaleController.getString(R.string.KeepEditHistoryAbout)));
+    private final AbstractConfigCell clearMessageHistoryRow = cellGroup.appendCell(new ConfigCellText("ClearKeptMessageHistory", () -> {
+        xyz.nextalone.nagram.helper.MessageHistoryStore.clearAll(currentAccount);
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.done, LocaleController.getString(R.string.ClearKeptMessageHistoryDone)).show();
+    }));
+>>>>>>> origin/privacy
     private final AbstractConfigCell divider6 = cellGroup.appendCell(new ConfigCellDivider());
 
     private final AbstractConfigCell header7 = cellGroup.appendCell(new ConfigCellHeader(LocaleController.getString("General")));

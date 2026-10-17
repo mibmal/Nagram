@@ -7876,6 +7876,11 @@ public class MessagesStorage extends BaseController {
         return ref.get();
     }
 
+    // Must be called on the storage queue.
+    public TLRPC.Message getMessageOnStorageQueue(long dialogId, long msgId) {
+        return getMessageInternal(dialogId, msgId);
+    }
+
     private TLRPC.Message getMessageInternal(long dialogId, long msgId) {
         SQLiteCursor cursor = null;
         TLRPC.Message result = null;
