@@ -29365,6 +29365,27 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
             if (pinnedMessageObject != null) {
+                // Nagram: the pinned message is usually off screen, so neither the
+                // cell driven auto translation nor the dialog wide translation reaches
+                // it; ask for its translation so the banner shows it translated.
+                final MessageObject pinnedToTranslate = pinnedMessageObject;
+                if (!pinnedToTranslate.translated && !pinnedToTranslate.translating) {
+                    if (DialogConfig.isAutoTranslateEnable(dialog_id, getTopicId()) && LanguageDetector.hasSupport()) {
+                        String pinnedSource = MessageHelper.getMessagePlainText(pinnedToTranslate);
+                        if (!TextUtils.isEmpty(pinnedSource)) {
+                            LanguageDetector.detectLanguage(pinnedSource, lang -> {
+                                if (!isLanguageRestricted(lang)) {
+                                    ArrayList<MessageObject> fmessages = new ArrayList<>(Arrays.asList(pinnedToTranslate));
+                                    MessageTransKt.translateMessages(ChatActivity.this, fmessages, true);
+                                }
+                            }, e -> {
+                                getMessagesController().getTranslateController().checkTranslation(pinnedToTranslate, true);
+                            });
+                        }
+                    } else {
+                        getMessagesController().getTranslateController().checkTranslation(pinnedToTranslate, true);
+                    }
+                }
                 if (pinnedMessageView != null && pinnedMessageView.getTag() != null) {
                     pinnedMessageView.setTag(null);
                     changed = true;
@@ -29389,7 +29410,9 @@ public class ChatActivity extends BaseFragment implements
                 pinnedMessageButton[animateToNext != 0 ? 0 : 1].setOnClickListener(null);
                 pinnedMessageButton[animateToNext != 0 ? 0 : 1].setOnLongClickListener(null);
                 if (botButton != null) {
-                    CharSequence string = new SpannableString(botButton.text);
+                    // Nagram: the pinned banner button is markup[0][0], so its
+                    // translation, when one exists, is translatedButtons index 0.
+                    CharSequence string = new SpannableString(pinnedMessageObject.getBotButtonText(0, botButton.text));
                     if (TLKeyboardHelper.isType(botButton, TL_keyboard.TL_inlineButtonTypeBuy.class) && pinnedMessageObject != null && MessageObject.getMedia(pinnedMessageObject.messageOwner) instanceof TLRPC.TL_messageMediaInvoice) {
                         string = StarsIntroActivity.replaceStars(string);
                     }
