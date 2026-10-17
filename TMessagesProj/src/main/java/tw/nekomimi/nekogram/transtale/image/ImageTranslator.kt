@@ -43,7 +43,9 @@ import tw.nekomimi.nekogram.transtale.Translator
 import tw.nekomimi.nekogram.transtale.code2Locale
 import tw.nekomimi.nekogram.transtale.source.LLMTranslator
 import xyz.nextalone.nagram.NaConfig
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.Locale
 
 /**
  * "Translate image" in the photo viewer: read the text on the phone
@@ -207,7 +209,6 @@ object ImageTranslator {
                     return@launch
                 }
                 status.text = LocaleController.getString(R.string.TranslateImageTranslating)
-                val to = NekoConfig.translateToLang.String()?.code2Locale ?: LocaleController.getInstance().currentLocale
                 val texts = result.blocks.map { b -> b.groups.joinToString("\n") { it.text } }
                 // A few blocks at a time: providers rate-limit, and a self-hosted
                 // LibreTranslate on a small box shouldn't get 40 requests at once.
