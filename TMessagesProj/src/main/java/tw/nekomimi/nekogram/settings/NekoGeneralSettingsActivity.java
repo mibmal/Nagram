@@ -115,6 +115,7 @@ public class NekoGeneralSettingsActivity extends BaseNekoXSettingsActivity {
             }, null));
     private final AbstractConfigCell llmSettingsRow = cellGroup.appendCell(new ConfigCellCustom("LLMSettings", CellGroup.ITEM_TYPE_TEXT_SETTINGS_CELL, true));
     private final AbstractConfigCell hideOriginAfterTranslationRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getHideOriginAfterTranslation()));
+    private final AbstractConfigCell translateChatNamesRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getTranslateChatNames()));
     private final AbstractConfigCell autoTranslateRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getAutoTranslate(), LocaleController.getString("AutoTranslateAbout")));
     private final AbstractConfigCell dividerTranslation = cellGroup.appendCell(new ConfigCellDivider());
 
