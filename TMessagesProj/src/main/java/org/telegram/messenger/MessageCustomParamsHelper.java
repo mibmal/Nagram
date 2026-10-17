@@ -28,6 +28,7 @@ public class MessageCustomParamsHelper {
             message.translatedPoll == null &&
             message.translatedText == null &&
             message.translatedRichMessage == null &&
+            message.translatedButtons == null &&
             message.errorAllowedPriceStars == 0 &&
             message.errorNewPriceStars == 0
         );
@@ -53,6 +54,7 @@ public class MessageCustomParamsHelper {
         toMessage.summaryText = fromMessage.summaryText;
         toMessage.translatedSummaryText = fromMessage.translatedSummaryText;
         toMessage.translatedSummaryLanguage = fromMessage.translatedSummaryLanguage;
+        toMessage.translatedButtons = fromMessage.translatedButtons;
     }
 
 
@@ -114,6 +116,7 @@ public class MessageCustomParamsHelper {
             flags = setFlag(flags, FLAG_12, message.translatedSummaryLanguage != null);
 
             flags = setFlag(flags, FLAG_13, message.translatedRichMessage != null);
+            flags = setFlag(flags, FLAG_14, message.translatedButtons != null);
         }
 
         @Override
@@ -166,6 +169,9 @@ public class MessageCustomParamsHelper {
             if (hasFlag(flags, FLAG_13)) {
                 message.translatedRichMessage.serializeToStream(stream);
             }
+            if (hasFlag(flags, FLAG_14)) {
+                message.translatedButtons.serializeToStream(stream);
+            }
         }
 
         @Override
@@ -215,6 +221,9 @@ public class MessageCustomParamsHelper {
             }
             if (hasFlag(flags, FLAG_13)) {
                 message.translatedRichMessage = TL_iv.RichMessage.TLdeserialize(stream, stream.readInt32(exception), exception);
+            }
+            if (hasFlag(flags, FLAG_14)) {
+                message.translatedButtons = TranslateController.ButtonsText.TLdeserialize(stream, stream.readInt32(exception), exception);
             }
         }
 

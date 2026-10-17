@@ -10890,6 +10890,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 botButtonsByData.clear();
                 if (inlineButtons != null) {
                     int separatorsHeight = 0;
+                    int botButtonIndex = 0;
                     for (int row = 0; row < rows; row++) {
                         int buttonsCount = inlineButtons.getColumnsCount(row);
                         if (buttonsCount == 0) {
@@ -10958,7 +10959,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                             if (TLKeyboardHelper.isType(botButton.button, TL_keyboard.TL_inlineButtonTypeBuy.class) && (MessageObject.getMedia(messageObject.messageOwner).flags & 4) != 0) {
                                 buttonText = getString(R.string.PaymentReceipt);
                             } else {
-                                buttonText = inlineButton.getText();
+                                // Nagram: show the translated label when the chat is translated
+                                if (inlineButton instanceof BotInlineKeyboard.ButtonBot) {
+                                    buttonText = messageObject.getBotButtonText(botButtonIndex++, inlineButton.getText());
+                                } else {
+                                    buttonText = inlineButton.getText();
+                                }
                             }
 
                             if (inlineButton instanceof BotInlineKeyboard.ButtonCustom) {
