@@ -246,6 +246,10 @@
     <string name="DeepLApiKeyNotice">Authentication key for the official DeepL Pro API</string>
     <string name="DeepLFreeApiKey">DeepL Free API Key</string>
     <string name="DeepLFreeApiKeyNotice">Authentication key for the official DeepL Free API</string>
+    <string name="ProviderLibreTranslate">LibreTranslate</string>
+    <string name="LibreTranslateApi">LibreTranslate URL</string>
+    <string name="LibreTranslateApiKey">LibreTranslate API Key</string>
+    <string name="LibreTranslateApiKeyNotice">Only needed if your LibreTranslate instance requires an API key</string>
     <string name="SummarizeText">Summarize</string>
     <string name="SummarizeTextButton">Summarize text button</string>
     <string name="SummarizeTextButtonDisable">Disable</string>
