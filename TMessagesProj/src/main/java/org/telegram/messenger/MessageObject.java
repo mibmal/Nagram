@@ -4519,7 +4519,9 @@ public class MessageObject {
      * and the labels were translated, the translated label replaces the original.
      */
     public String getBotButtonText(int index, String original) {
-        if (!translated || messageOwner == null) {
+        // `translated` covers the upstream pipeline, `messageOwner.translated` the NekoX
+        // providers (LLM and friends), which mark the translation on the message itself.
+        if (messageOwner == null || !(translated || messageOwner.translated)) {
             return original;
         }
         final TranslateController.ButtonsText buttonsText = messageOwner.translatedButtons;

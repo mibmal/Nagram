@@ -73,12 +73,21 @@ fun MessageObject.translateFinished(locale: Locale): Int {
         messageOwner.translatedPoll = translatedPoll
     } else {
 
-        val text = db.query(messageOwner.message.takeIf { !it.isNullOrBlank() } ?: return 1)?.takeIf { it.isNotBlank() }
-                ?: return 0
+        // A message whose only text is on the bot buttons ("View message" link buttons) is
+        // not finished: it still has to go through translateMessage for its labels.
+        val source = messageOwner.message.takeIf { !it.isNullOrBlank() }
+            ?: return if (TranslateController.hasBotButtonsWithText(this)) 0 else 1
+
+        val text = db.query(source)?.takeIf { it.isNotBlank() } ?: return 0
 
         messageOwner.translatedMessage =
             "${if (!NaConfig.hideOriginAfterTranslation.Bool()) messageOwner.message + "\n\n--------\n\n" else ""}$text"
 
+    }
+
+    // The text is cached, but the bot keyboard labels may not be translated yet.
+    if (messageOwner.translatedButtons == null && TranslateController.hasBotButtonsWithText(this)) {
+        return 0
     }
 
     return 2
@@ -215,11 +224,71 @@ private suspend fun ChatActivity.translateMessage(
     error: AtomicReference<Throwable?>
 ): Boolean {
     val db = TranslateDb.forLocale(target)
-    return if (message.isPoll) {
+    val textTranslated = if (message.isPoll) {
         translatePoll(message, target, context, db, cancel, error)
     } else {
         translateText(message, target, context, db, cancel, error)
     }
+    // The bot keyboard buttons translate together with the text; a message whose only
+    // text is on the buttons ("View message" channel link buttons) succeeds through them.
+    return translateButtons(message, target, db, cancel, error) || textTranslated
+}
+
+/**
+ * Translates the labels of the inline bot keyboard buttons (channel link buttons like
+ * "View message", bot keyboards) with the user's translation provider. Every label is a
+ * separate request with an empty context: they are short and independent, and without a
+ * context the provider saves each label to the per-locale [TranslateDb] cache.
+ *
+ * A label that stays untranslated keeps its original text, so a provider hiccup degrades
+ * to the current behaviour instead of dropping the keyboard.
+ *
+ * @return true when at least one label is translated (or was translated earlier).
+ */
+private suspend fun ChatActivity.translateButtons(
+    message: MessageObject,
+    target: Locale,
+    db: TranslateDb,
+    cancel: AtomicBoolean,
+    error: AtomicReference<Throwable?>
+): Boolean {
+    val markup = message.messageOwner.reply_markup as? TLRPC.TL_replyInlineMarkup ?: return false
+    if (message.messageOwner.translatedButtons != null) return true
+    val labels = markup.rows.flatMap { row -> row.buttons.map { it.text.orEmpty().trim() } }
+    if (labels.none { it.isNotEmpty() }) return false
+
+    val texts = ArrayList<TLRPC.TL_textWithEntities>(labels.size)
+    var any = false
+    for (label in labels) {
+        if (cancel.get()) return any
+        if (label.isEmpty()) {
+            texts.add(TLRPC.TL_textWithEntities())
+            continue
+        }
+        var translated = db.query(label)?.takeIf { it.isNotBlank() }
+        if (translated == null) {
+            translated = runCatching {
+                translateWithRetry(target, label, emptyList(), cancel)
+            }.getOrElse {
+                error.compareAndSet(null, it)
+                FileLog.e(it)
+                null
+            }
+        }
+        if (translated.isNullOrBlank()) {
+            texts.add(TLRPC.TL_textWithEntities())
+        } else {
+            texts.add(TLRPC.TL_textWithEntities().also { it.text = translated })
+            any = true
+        }
+    }
+    if (any) {
+        message.messageOwner.translatedButtons = TranslateController.ButtonsText().also {
+            it.lang = target.toLanguageTag()
+            it.texts = texts
+        }
+    }
+    return any
 }
 
 private suspend fun ChatActivity.translatePoll(
@@ -287,8 +356,7 @@ private suspend fun ChatActivity.translatePoll(
 }
 
 private suspend fun ChatActivity.translateText(
-    message: MessageObject,
-    target: Locale,
+    message: MessageObject,    target: Locale,
     context: List<String>,
     db: TranslateDb,
     cancel: AtomicBoolean,
