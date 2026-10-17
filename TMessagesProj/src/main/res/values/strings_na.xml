@@ -278,6 +278,8 @@
     <string name="LLMApiKey">API Key</string>
     <string name="LLMApiKeys">LLM API Keys</string>
     <string name="LLMModelName">Model Name</string>
+    <string name="LLMVisionModel">Vision Model</string>
+    <string name="LLMVisionModelNotice">Model that reads images for \"Translate image\" (e.g. moondream, or any vision model your endpoint serves). Blank: the normal translation model. Fails back to on-device OCR.</string>
     <string name="LLMSystemPrompt">System Prompt</string>
     <string name="LLMTranslationPrompt">Translation Prompt</string>
     <string name="LLMUseContext">Use Recent Messages as Context</string>

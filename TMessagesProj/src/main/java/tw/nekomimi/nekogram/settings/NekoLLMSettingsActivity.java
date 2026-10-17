@@ -66,6 +66,7 @@ public class NekoLLMSettingsActivity extends BaseNekoXSettingsActivity {
     private final AbstractConfigCell llmApiKeysRow = cellGroup.appendCell(new ConfigCellTextInput(null, NaConfig.INSTANCE.getLlmApiKeys(), "sk-...", null));
     private final AbstractConfigCell llmModelRow = cellGroup.appendCell(new ConfigCellCustom("LLMModel", CellGroup.ITEM_TYPE_TEXT_SETTINGS_CELL, true));
     private final AbstractConfigCell llmFetchModelsRow = cellGroup.appendCell(new ConfigCellCustom("LLMFetchModels", CellGroup.ITEM_TYPE_TEXT_SETTINGS_CELL, true));
+    private final AbstractConfigCell llmVisionModelRow = cellGroup.appendCell(new ConfigCellTextInput(null, NaConfig.INSTANCE.getLlmVisionModel(), "moondream", LocaleController.getString("LLMVisionModelNotice", R.string.LLMVisionModelNotice)));
     private final AbstractConfigCell dividerCredential = cellGroup.appendCell(new ConfigCellDivider());
 
     // --- Advanced section ---

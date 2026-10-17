@@ -476,6 +476,70 @@ object LLMTranslator : Translator {
         }
     }
 
+    /**
+     * "Translate image" without the on-device OCR: sends the image to the
+     * provider's vision model ([NaConfig.llmVisionModel], falling back to the
+     * normal translation model) and asks it to transcribe and translate every
+     * visible text block in one pass. Returns the raw model output; the caller
+     * parses the JSON array of {"source", "translation"} pairs.
+     *
+     * OpenAI chat-completions format only: that is what every preset provider
+     * and a self-hosted Ollama speak; the caller falls back to the local OCR
+     * path on any failure.
+     */
+    @JvmStatic
+    suspend fun translateImage(base64Jpeg: String, to: Locale): String {
+        val provider = NaConfig.llmProvider.Int()
+        val rawUrl = (if (providerUrls.containsKey(provider)) providerUrls[provider]!!
+        else NaConfig.llmApiUrl.String()?.takeIf { !it.isNullOrBlank() } ?: "https://api.openai.com/v1"
+        ).removeSuffix("/")
+        val baseUrl = rawUrl.removeSuffix("/chat/completions").removeSuffix("/messages").removeSuffix("/responses")
+        val model = NaConfig.llmVisionModel.String()?.takeIf { !it.isBlank() } ?: getModel(provider)
+        val apiKey = getNextApiKey()
+        val language = getLanguageName(to.language)
+
+        val requestBody = buildJsonObject {
+            put("model", model)
+            put("messages", buildJsonArray {
+                add(buildJsonObject {
+                    put("role", "system")
+                    put("content", "You are an image translation engine. Read the text in the image you are shown and translate it. Never add commentary.")
+                })
+                add(buildJsonObject {
+                    put("role", "user")
+                    put("content", buildJsonArray {
+                        add(buildJsonObject {
+                            put("type", "text")
+                            put("text", "Transcribe every visible text block in this image in reading order and translate each into $language. " +
+                                "Keep each block as short as the text on the picture allows; skip text that is not legible. " +
+                                "Reply with ONLY a JSON array of objects with the keys \"source\" and \"translation\".")
+                        })
+                        add(buildJsonObject {
+                            put("type", "image_url")
+                            put("image_url", buildJsonObject { put("url", "data:image/jpeg;base64,$base64Jpeg") })
+                        })
+                    })
+                })
+            })
+            put("temperature", 0.2)
+        }
+
+        val response = NetworkRequestBuilder.post("$baseUrl/chat/completions") {
+            header("Authorization", "Bearer $apiKey")
+            header("Content-Type", "application/json")
+            setBody(requestBody.toString())
+        }.execute()
+
+        checkResponseStatus(HttpStatusCode(response.statusCode, ""), response.body)
+        val responseJson = Json.parseToJsonElement(response.body).jsonObject
+        val choices = responseJson["choices"]?.jsonArray
+        if (choices.isNullOrEmpty()) {
+            throw Exception("LLM API returned no choices")
+        }
+        val content = choices[0].jsonObject["message"]?.jsonObject?.get("content")?.jsonPrimitive?.content
+        return content?.trim() ?: throw Exception("No content in response")
+    }
+
     private fun getLanguageName(code: String): String {
         val locale = Locale.forLanguageTag(code)
         val name = locale.displayName

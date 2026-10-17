@@ -17,6 +17,11 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.util.Base64
+import java.io.ByteArrayOutputStream
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,6 +41,8 @@ import tw.nekomimi.nekogram.NekoConfig
 import tw.nekomimi.nekogram.utils.AlertUtil
 import tw.nekomimi.nekogram.transtale.Translator
 import tw.nekomimi.nekogram.transtale.code2Locale
+import tw.nekomimi.nekogram.transtale.source.LLMTranslator
+import xyz.nextalone.nagram.NaConfig
 import java.io.File
 
 /**
@@ -176,6 +183,23 @@ object ImageTranslator {
         private fun start() = scope.launch {
             try {
                 status.text = LocaleController.getString(R.string.TranslateImageReading)
+                val to = NekoConfig.translateToLang.String()?.code2Locale ?: LocaleController.getInstance().currentLocale
+                // LLM first: a vision model reads and translates the image in one
+                // pass, so the phone's CPU never runs the OCR pipeline. The
+                // translate lock applies here too: a locked build only lets a
+                // self-hosted endpoint see the picture.
+                val llmAllowed = NekoConfig.translationProvider.Int() == Translator.providerLLM &&
+                    (!NaConfig.translateLockToLibre.Bool() || LLMTranslator.selfHosted())
+                if (llmAllowed) {
+                    val llmPairs = runCatching { readWithLlm(to) }
+                        .onFailure { FileLog.e("[ImageTranslator] LLM image read failed, falling back to on-device OCR", it) }
+                        .getOrNull()
+                    if (!llmPairs.isNullOrEmpty()) {
+                        status.visibility = View.GONE
+                        llmPairs.forEach { addPair(it.first, it.second) }
+                        return@launch
+                    }
+                }
                 val result = withContext(Dispatchers.Default) { ImageOcr.read(activity, original) }
                 if (result.blocks.isEmpty()) {
                     status.text = LocaleController.getString(R.string.TranslateImageNoText)
@@ -211,6 +235,35 @@ object ImageTranslator {
                 FileLog.e(e)
                 status.text = e.message ?: e.javaClass.simpleName
             }
+        }
+
+        /**
+         * The LLM path: the provider's vision model transcribes and translates
+         * every text block in one request. Throws on any failure so the caller
+         * can fall back to the on-device OCR.
+         */
+        private suspend fun readWithLlm(to: Locale): List<Pair<String, String>> = withContext(Dispatchers.IO) {
+            val maxSide = 1280
+            val scale = minOf(maxSide.toFloat() / original.width, maxSide.toFloat() / original.height, 1f)
+            val bitmap = if (scale < 1f) {
+                Bitmap.createScaledBitmap(original, (original.width * scale).toInt(), (original.height * scale).toInt(), true)
+            } else {
+                original
+            }
+            val bytes = ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) }.toByteArray()
+            if (bitmap !== original) bitmap.recycle()
+
+            val out = LLMTranslator.translateImage(Base64.encodeToString(bytes, Base64.NO_WRAP), to)
+            val start = out.indexOf('[')
+            val end = out.lastIndexOf(']')
+            if (start < 0 || end <= start) error("vision model returned no JSON array: ${out.take(200)}")
+            val items = kotlinx.serialization.json.Json.parseToJsonElement(out.substring(start, end + 1)).jsonArray
+            items.mapNotNull { element ->
+                val obj = element.jsonObject
+                val source = obj["source"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val translation = obj["translation"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                source to translation
+            }.also { if (it.isEmpty()) error("vision model returned no text blocks") }
         }
 
         private fun refresh() {

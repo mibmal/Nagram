@@ -1261,6 +1261,12 @@ object NaConfig {
             ConfigItem.configTypeString,
             ""
         )
+    val llmVisionModel =
+        addConfig(
+            "LLMVisionModel",
+            ConfigItem.configTypeString,
+            ""
+        )
     val llmSystemPrompt =
         addConfig(
             "LLMSystemPrompt",
