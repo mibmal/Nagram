@@ -145,12 +145,30 @@ object LLMTranslator : Translator {
         for (attempt in 0 until MAX_RETRY) {
             try {
                 val apiKey = getNextApiKey()
-                return when (apiFormat) {
+                val firstPass = when (apiFormat) {
                     API_FORMAT_OPENAI_RESPONSE -> doOpenAIResponseTranslate(baseUrl, apiKey, model, systemPrompt, userPrompt, temperature)
                     API_FORMAT_ANTHROPIC -> doAnthropicTranslate(baseUrl, apiKey, model, systemPrompt, userPrompt)
                     API_FORMAT_CUSTOM -> doCustomTranslate(baseUrl, apiKey, model, systemPrompt, userPrompt, temperature)
                     else -> doOpenAIChatTranslate(baseUrl, apiKey, model, systemPrompt, userPrompt, temperature)
                 }
+                // A small model sometimes leaves source characters in the
+                // output on short label-like messages (e.g. "3228號") -- a
+                // variance miss, not a hard failure. When the target language
+                // has no CJK of its own, one retry with the instruction made
+                // explicit almost always clears it.
+                if (containsCjk(firstPass) && !isCjkLanguage(to)) {
+                    val retryPrompt = systemPrompt +
+                        "\n\nIMPORTANT: the previous attempt left source-language characters in the output. " +
+                        "Output only $targetLanguage text -- no Chinese or Japanese characters at all."
+                    val secondPass = when (apiFormat) {
+                        API_FORMAT_OPENAI_RESPONSE -> doOpenAIResponseTranslate(baseUrl, apiKey, model, retryPrompt, userPrompt, temperature)
+                        API_FORMAT_ANTHROPIC -> doAnthropicTranslate(baseUrl, apiKey, model, retryPrompt, userPrompt)
+                        API_FORMAT_CUSTOM -> doCustomTranslate(baseUrl, apiKey, model, retryPrompt, userPrompt, temperature)
+                        else -> doOpenAIChatTranslate(baseUrl, apiKey, model, retryPrompt, userPrompt, temperature)
+                    }
+                    if (!containsCjk(secondPass)) return secondPass
+                }
+                return firstPass
             } catch (e: RateLimitException) {
                 lastException = e
                 if (attempt < MAX_RETRY - 1) {
@@ -341,6 +359,18 @@ object LLMTranslator : Translator {
     }
 
     // --- Helpers ---
+
+    /** CJK ideographs: any such character in an output meant for a
+     *  non-CJK target language is a translation miss. */
+    @JvmStatic
+    fun containsCjk(text: String): Boolean {
+        val cjkStart = 0x4E00
+        val cjkEnd = 0x9FFF
+        return text.any { it.code in cjkStart..cjkEnd }
+    }
+
+    private fun isCjkLanguage(code: String): Boolean =
+        code.startsWith("zh", true) || code.equals("ja", true) || code.equals("yue", true)
 
     internal fun buildOpenAIChatRequestBody(
         model: String,
