@@ -2947,6 +2947,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
             observersGroup
                 .add(NotificationCenter.dialogsNeedReload)
+                .add(NotificationCenter.chatNameTranslated)
                 .add(NotificationCenter.dialogFiltersUpdated)
                 .add(NotificationCenter.updateInterfaces)
                 .add(NotificationCenter.encryptedChatUpdated)
@@ -10728,6 +10729,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 filterTabsView.checkTabsCounter();
             }
             slowedReloadAfterDialogClick = false;
+        } else if (id == NotificationCenter.chatNameTranslated) {
+            // na: a chat title translation just arrived, refresh the visible name rows
+            updateVisibleRows(0);
         } else if (id == NotificationCenter.topicsDidLoaded) {
             updateVisibleRows(0);
         } else if (id == NotificationCenter.chatInfoDidLoad) {

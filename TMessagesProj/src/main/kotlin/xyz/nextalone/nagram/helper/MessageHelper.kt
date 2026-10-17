@@ -32,8 +32,10 @@ import org.telegram.messenger.MediaController
 import org.telegram.messenger.MediaDataController
 import org.telegram.messenger.MessageObject
 import org.telegram.messenger.R
+import org.telegram.messenger.TranslateController
 import org.telegram.messenger.UserConfig
 import org.telegram.messenger.Utilities
+import org.telegram.tgnet.TLRPC
 import org.telegram.tgnet.TLRPC.Chat
 import org.telegram.tgnet.TLRPC.TL_messageEntityBankCard
 import org.telegram.tgnet.TLRPC.TL_messageEntityBotCommand
@@ -270,9 +272,9 @@ object MessageHelper {
         }
         return if (messageObject.isPoll) {
             true
-        } else !TextUtils.isEmpty(messageObject.messageOwner.message) && !isLinkOrEmojiOnlyMessage(
+        } else (!TextUtils.isEmpty(messageObject.messageOwner.message) && !isLinkOrEmojiOnlyMessage(
             messageObject
-        )
+        )) || TranslateController.hasBotButtonsWithText(messageObject)
     }
 
     @JvmStatic
@@ -292,7 +294,18 @@ object MessageHelper {
         } else if (messageObject.isVoiceTranscriptionOpen) {
             messageObject.messageOwner.voiceTranscription
         } else {
-            messageObject.messageOwner.message
+            val text = messageObject.messageOwner.message
+            if (!text.isNullOrBlank() || !TranslateController.hasBotButtonsWithText(messageObject)) {
+                text
+            } else {
+                // A message whose only text is on the bot keyboard buttons ("View
+                // message" channel link buttons): detect its language from the labels
+                // so it still goes through the auto translation.
+                val markup = messageObject.messageOwner.reply_markup as TLRPC.TL_replyInlineMarkup
+                markup.rows.flatMap { row ->
+                    row.buttons.mapNotNull { it.text?.trim()?.takeIf(String::isNotEmpty) }
+                }.joinToString("\n")
+            }
         }
     }
 

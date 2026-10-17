@@ -4,8 +4,8 @@ import org.telegram.messenger.MessageObject
 import org.telegram.messenger.TranslateController
 import org.telegram.tgnet.TLRPC
 import tw.nekomimi.nekogram.transtale.TranslateDb
-import tw.nekomimi.nekogram.transtale.Translator
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Poll translation, built on top of [MessageTransText].
@@ -49,13 +49,14 @@ internal object MessageTransPoll {
         pollText: TranslateController.PollText,
         target: Locale,
         context: List<String>,
-        db: TranslateDb
+        db: TranslateDb,
+        cancel: AtomicBoolean
     ): TranslateController.PollText {
-        pollText.question = pollText.question?.let { translatePart(it, target, context, db) }
+        pollText.question = pollText.question?.let { translatePart(it, target, context, db, cancel) }
         pollText.answers.forEach { answer ->
-            answer.text = translatePart(answer.text, target, context, db)
+            answer.text = translatePart(answer.text, target, context, db, cancel)
         }
-        pollText.solution = pollText.solution?.let { translatePart(it, target, context, db) }
+        pollText.solution = pollText.solution?.let { translatePart(it, target, context, db, cancel) }
         return pollText
     }
 
@@ -67,10 +68,11 @@ internal object MessageTransPoll {
         source: TLRPC.TL_textWithEntities,
         target: Locale,
         context: List<String>,
-        db: TranslateDb
+        db: TranslateDb,
+        cancel: AtomicBoolean
     ): TLRPC.TL_textWithEntities {
         MessageTransText.mergeCached(source, db, separator)?.let { return it }
-        val translated = Translator.translate(target, MessageTransText.queryTextOf(source), context)
+        val translated = translateWithRetry(target, MessageTransText.queryTextOf(source), context, cancel)
         return MessageTransText.merge(source, translated, separator)
     }
 }

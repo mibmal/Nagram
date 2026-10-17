@@ -150,6 +150,7 @@ import java.util.Stack;
 import me.vkryl.android.animator.BoolAnimator;
 
 import tw.nekomimi.nekogram.helpers.AyuFilter;
+import tw.nekomimi.nekogram.parts.ChatNameTrans;
 import tw.nekomimi.nekogram.ui.MessageHelper;
 import tw.nekomimi.nekogram.NekoConfig;
 import xyz.nextalone.nagram.NaConfig;
@@ -2281,10 +2282,10 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                             sb.setSpan(new FilterCreateActivity.TextSpan(getString(R.string.MonoforumSpan), 9.33f, Theme.key_windowBackgroundWhiteGrayText, resourcesProvider), index, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                             nameString = sb;
                         } else {
-                            nameString = AndroidUtilities.escape(chat.title);
+                            nameString = AndroidUtilities.escape(ChatNameTrans.name(currentAccount, chat));
                         }
                     } else {
-                        nameString = AndroidUtilities.escape(chat.title);
+                        nameString = AndroidUtilities.escape(ChatNameTrans.name(currentAccount, chat));
                     }
                 } else if (user != null) {
                     if (UserObject.isReplyUser(user)) {

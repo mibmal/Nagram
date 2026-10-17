@@ -55,6 +55,7 @@
     <string name="InputMessageId">Input Message Id</string>
     <string name="ToTheMessage">To the message</string>
     <string name="HideOriginAfterTranslation">Hide origin after translation</string>
+    <string name="TranslateChatNames">Translate group and channel names</string>
     <string name="ZalgoFilter">Filter \"Zalgo\" symbols</string>
     <string name="ZalgoFilterNotice">All \"Z̷͍͌ā̸̜l̸̞̂g̷̝͘o̶̩̓\" symbols in nicknames or messages will be removed.</string>
     <string name="CustomChannelLabel">Custom default channel label</string>

@@ -8,10 +8,13 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.telegram.messenger.FileLog
 import org.telegram.messenger.MessageObject
+import org.telegram.messenger.TranslateController
 import org.telegram.tgnet.TLRPC
 import org.telegram.ui.ActionBar.AlertDialog
 import org.telegram.ui.ChatActivity
@@ -27,8 +30,10 @@ import xyz.nextalone.nagram.NaConfig
 import xyz.nextalone.nagram.helper.MessageHelper
 import java.util.Locale
 import java.util.WeakHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 private const val MAX_CONTEXT_MESSAGES = 5
 private const val TRANSLATION_PARALLELISM = 5
@@ -89,6 +94,8 @@ fun ChatActivity.translateMessages(
     // label and the bounded dispatcher are per chat and shared by every job of this dialog.
     val cancel = cancellationFlag()
     val status = progressDialog(autoTranslate)
+    val error = AtomicReference<Throwable?>()
+    val failed = ConcurrentLinkedQueue<MessageObject>()
     val timeline = this.messages.toList()
     val scope = translationScope()
 
@@ -96,12 +103,18 @@ fun ChatActivity.translateMessages(
         val progress = ProgressCounter(messages.size, status)
         try {
             messages.map { message ->
-                async { translateOne(message, target, timeline, cancel, status, progress) }
+                async {
+                    if (!translateOne(message, target, timeline, cancel, error, progress) && !cancel.get()) {
+                        failed.add(message)
+                    }
+                }
             }.awaitAll()
         } finally {
             messages.forEach { it.translating = false }
             UIUtil.runOnUIThread { if (!cancel.get()) status?.uDismiss() }
         }
+        // One error dialog per batch, retrying only the messages that failed.
+        error.get()?.let { handleError(target, it, failed.toList(), autoTranslate, cancel) }
     }
 }
 
@@ -181,26 +194,58 @@ private class ProgressCounter(private val total: Int, private val status: AlertD
     }
 }
 
+// Retries transient failures (e.g. "HTTP 0" network drops) with the same provider.
+internal suspend fun translateWithRetry(
+    target: Locale,
+    text: String,
+    context: List<String>,
+    cancel: AtomicBoolean
+): String {
+    var attempt = 0
+    while (true) {
+        try {
+            return Translator.translate(target, text, context)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: UnsupportedOperationException) {
+            throw e
+        } catch (e: Exception) {
+            if (++attempt >= 5 || cancel.get()) throw e
+            // 1s, 2s, 4s, 8s: gives the network time to come back after the app is resumed
+            delay(1000L shl (attempt - 1))
+        }
+    }
+}
+
 private suspend fun ChatActivity.translateOne(
     message: MessageObject,
     target: Locale,
     timeline: List<MessageObject>,
     cancel: AtomicBoolean,
-    status: AlertDialog?,
+    error: AtomicReference<Throwable?>,
     progress: ProgressCounter
-) {
+): Boolean {
     try {
         val context = translationContext(message, timeline)
         val db = TranslateDb.forLocale(target)
-        if (message.isPoll) {
-            translatePoll(message, target, context, db, cancel, status)
+        val textTranslated = if (message.isPoll) {
+            translatePoll(message, target, context, db, cancel, error)
         } else {
-            translateFromCache(message, db) || translateText(message, target, context, cancel, status)
+            translateFromCache(message, db) ||
+                translateText(message, target, context, cancel, error) ||
+                // A message can be translatable for its extras alone (bot keyboard
+                // with no caption, link preview with no text); translateText
+                // already covered the extras of messages that do have text.
+                (message.textSource() == null && translateExtras(message, target, context, cancel))
         }
+        // The bot keyboard buttons translate together with the text; a message whose only
+        // text is on the buttons ("View message" channel link buttons) succeeds through them.
+        return translateButtons(message, target, db, cancel, error) || textTranslated
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        reportError(target, listOf(message), e, cancel, status)
+        error.compareAndSet(null, e)
+        return false
     } finally {
         progress.tick()
         // The chat may be gone by now: a canceled job must not touch the message list.
@@ -219,6 +264,8 @@ private fun translateFromCache(message: MessageObject, db: TranslateDb): Boolean
     val source = message.textSource() ?: return false
     val separator = MessageTransText.separatorFor(false)
     val cached = MessageTransText.mergeCached(source, db, separator) ?: return false
+    // Extras are runtime-only; without a cache they need the network path, which owns them.
+    if (message.hasTranslateExtras() && !message.applyCachedTranslateExtras()) return false
     markTranslatedLocally(message) { it.translatedText = cached }
     return true
 }
@@ -228,24 +275,86 @@ private suspend fun ChatActivity.translateText(
     target: Locale,
     context: List<String>,
     cancel: AtomicBoolean,
-    status: AlertDialog?
+    error: AtomicReference<Throwable?>
 ): Boolean {
     val source = message.textSource() ?: return false
     if (cancel.get()) return false
 
     val separator = MessageTransText.separatorFor(false)
     val translated = runCatching {
-        Translator.translate(target, MessageTransText.queryTextOf(source), context)
+        translateWithRetry(target, MessageTransText.queryTextOf(source), context, cancel)
     }.getOrElse {
         // Scope cancellation is not a provider failure: let it propagate so no dialog is shown.
         if (it is CancellationException) throw it
-        reportError(target, listOf(message), it, cancel, status)
+        error.compareAndSet(null, it)
         return false
     }
     if (translated.isBlank() || cancel.get()) return false
 
     markTranslatedLocally(message) { it.translatedText = MessageTransText.merge(source, translated, separator) }
+    // Best effort: buttons and the link preview never fail the text translation.
+    translateExtras(message, target, context, cancel)
     return true
+}
+
+/**
+ * Translates the labels of the inline bot keyboard buttons (channel link buttons like
+ * "View message", bot keyboards) with the user's translation provider. Every label is a
+ * separate request with an empty context: they are short and independent, and without a
+ * context the provider saves each label to the per-locale [TranslateDb] cache.
+ *
+ * A label that stays untranslated keeps its original text, so a provider hiccup degrades
+ * to the current behaviour instead of dropping the keyboard.
+ *
+ * @return true when at least one label is translated (or was translated earlier).
+ */
+private suspend fun ChatActivity.translateButtons(
+    message: MessageObject,
+    target: Locale,
+    db: TranslateDb,
+    cancel: AtomicBoolean,
+    error: AtomicReference<Throwable?>
+): Boolean {
+    val markup = message.messageOwner.reply_markup as? TLRPC.TL_replyInlineMarkup ?: return false
+    if (message.messageOwner.translatedButtons != null) return true
+    val labels = markup.rows.flatMap { row -> row.buttons.map { it.text.orEmpty().trim() } }
+    if (labels.none { it.isNotEmpty() }) return false
+
+    val texts = ArrayList<TLRPC.TL_textWithEntities>(labels.size)
+    var any = false
+    for (label in labels) {
+        if (cancel.get()) return any
+        if (label.isEmpty()) {
+            texts.add(TLRPC.TL_textWithEntities())
+            continue
+        }
+        var translated = db.query(label)?.takeIf { it.isNotBlank() }
+        if (translated == null) {
+            translated = runCatching {
+                translateWithRetry(target, label, emptyList(), cancel)
+            }.getOrElse {
+                error.compareAndSet(null, it)
+                FileLog.e(it)
+                null
+            }
+        }
+        if (translated.isNullOrBlank()) {
+            texts.add(TLRPC.TL_textWithEntities())
+        } else {
+            texts.add(TLRPC.TL_textWithEntities().also { it.text = translated })
+            any = true
+        }
+    }
+    if (any) {
+        message.messageOwner.translatedButtons = TranslateController.ButtonsText().also {
+            it.lang = target.toLanguageTag()
+            it.texts = texts
+        }
+        // Flag it through the same local pipeline the text path uses, so the undo branch
+        // and MessageObject.updateTranslation treat it as translated.
+        markTranslatedLocally(message) { }
+    }
+    return any
 }
 
 private suspend fun ChatActivity.translatePoll(
@@ -254,7 +363,7 @@ private suspend fun ChatActivity.translatePoll(
     context: List<String>,
     db: TranslateDb,
     cancel: AtomicBoolean,
-    status: AlertDialog?
+    error: AtomicReference<Throwable?>
 ): Boolean {
     MessageTransPoll.pollTextOf(message)?.let { skeleton ->
         MessageTransPoll.translateCached(skeleton, db)?.let { cached ->
@@ -268,11 +377,11 @@ private suspend fun ChatActivity.translatePoll(
     // above may already be partially merged.
     val pollText = MessageTransPoll.pollTextOf(message) ?: return false
     val translated = runCatching {
-        MessageTransPoll.translate(pollText, target, context, db)
+        MessageTransPoll.translate(pollText, target, context, db, cancel)
     }.getOrElse {
         // Scope cancellation is not a provider failure: let it propagate so no dialog is shown.
         if (it is CancellationException) throw it
-        reportError(target, listOf(message), it, cancel, status)
+        error.compareAndSet(null, it)
         return false
     }
 
@@ -292,29 +401,121 @@ private fun markTranslatedLocally(message: MessageObject, block: (TLRPC.Message)
 
 private fun ChatActivity.clearTranslation(message: MessageObject) {
     val owner = message.messageOwner
+    message.restoreTranslateExtras()
     owner.translatedText = null
     owner.translatedPoll = null
+    owner.translatedButtons = null
     message.translatedLocally = false
     message.updateTranslation(true)
     messageHelper.resetMessageContent(dialogId, message)
 }
 
-private fun ChatActivity.reportError(
+// --- Translation extras: the link preview (inline keyboard buttons go through translateButtons) ---
+
+private fun MessageObject.linkWebPage(): TLRPC.WebPage? {
+    return (messageOwner?.media as? TLRPC.TL_messageMediaWebPage)?.webpage as? TLRPC.WebPage
+}
+
+private fun MessageObject.hasTranslateExtras(): Boolean {
+    val page = linkWebPage()
+    return !page?.title.isNullOrBlank() || !page?.description.isNullOrBlank()
+}
+
+/** Re-applies the translated link preview from this message's cache.
+ *  Returns false when there is something to translate but no cache yet, so
+ *  the caller takes the network path. */
+private fun MessageObject.applyCachedTranslateExtras(): Boolean {
+    val owner = messageOwner ?: return true
+    val page = linkWebPage()
+    if (page != null) {
+        if (owner.translatedWebPageTitle == null && owner.translatedWebPageDescription == null) {
+            if (!page.title.isNullOrBlank() || !page.description.isNullOrBlank()) return false
+        }
+        owner.translatedWebPageTitle?.let { page.title = it }
+        owner.translatedWebPageDescription?.let { page.description = it }
+    }
+    return true
+}
+
+/** Restores the original link preview (undo / show original). */
+private fun MessageObject.restoreTranslateExtras() {
+    val owner = messageOwner ?: return
+    val page = linkWebPage()
+    if (page != null) {
+        owner.originalWebPageTitle?.let { page.title = it }
+        owner.originalWebPageDescription?.let { page.description = it }
+    }
+}
+
+/**
+ * Translates the extras of [message] -- the link preview title/description --
+ * caching the result on the message owner and applying it in place. Best
+ * effort: a failed extra keeps its original text and never fails the message.
+ * The inline keyboard buttons are owned by [translateButtons], which caches
+ * each label in the per-locale provider cache.
+ *
+ * @return true when [message] has no text and its extras were applied, so it
+ *         counts as fully translated for the extras-only fallback in
+ *         [translateOne].
+ */
+private suspend fun ChatActivity.translateExtras(
+    message: MessageObject,
     target: Locale,
-    messages: List<MessageObject>,
+    context: List<String>,
+    cancel: AtomicBoolean
+): Boolean {
+    val owner = message.messageOwner ?: return false
+    val extrasOnly = message.textSource() == null
+
+    val page = message.linkWebPage()
+    if (page != null && owner.translatedWebPageTitle == null && owner.translatedWebPageDescription == null) {
+        val title = page.title
+        val description = page.description
+        val translatedTitle = title?.takeIf { it.isNotBlank() && it.any { c -> c.isLetter() } }?.let { text ->
+            runCatching { Translator.translate(target, text, context) }
+                .getOrElse { FileLog.e("webpage title translate failed", it); text }
+        }
+        val translatedDescription = description?.takeIf { it.isNotBlank() && it.any { c -> c.isLetter() } }?.let { text ->
+            runCatching { Translator.translate(target, text, context) }
+                .getOrElse { FileLog.e("webpage description translate failed", it); text }
+        }
+        if (cancel.get()) return false
+        owner.originalWebPageTitle = title
+        owner.originalWebPageDescription = description
+        owner.translatedWebPageTitle = translatedTitle ?: title
+        owner.translatedWebPageDescription = translatedDescription ?: description
+    }
+
+    if (!message.applyCachedTranslateExtras()) return false
+    if (extrasOnly) {
+        // Flag it through the same local pipeline the text path uses, so the
+        // undo branch and MessageObject.updateTranslation treat it as translated.
+        markTranslatedLocally(message) { }
+    }
+    return extrasOnly
+}
+
+// Shows at most one error dialog per batch, and Retry only re-translates the messages that failed.
+private fun ChatActivity.handleError(
+    target: Locale,
     error: Throwable,
-    cancel: AtomicBoolean,
-    status: AlertDialog?
+    failed: List<MessageObject>,
+    autoTranslate: Boolean,
+    cancel: AtomicBoolean
 ) {
-    if (cancel.get()) return
-    status?.uDismiss()
-    val activity = parentActivity ?: return
-    AlertUtil.showTransFailedDialog(
-        activity,
-        error is UnsupportedOperationException,
-        error.message ?: error.javaClass.simpleName
-    ) {
-        translateMessages(target, messages)
+    // Background auto-translation: don't interrupt reading with an error popup, just keep the original text.
+    if (autoTranslate) {
+        FileLog.e("auto translate failed: ${error.message ?: error.javaClass.simpleName}")
+        return
+    }
+    if (parentActivity != null && !cancel.get() && failed.isNotEmpty()) {
+        AlertUtil.showTransFailedDialog(
+            parentActivity,
+            error is UnsupportedOperationException,
+            error.message ?: error.javaClass.simpleName
+        ) {
+            translateMessages(target, failed)
+        }
     }
 }
 

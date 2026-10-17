@@ -3111,6 +3111,9 @@ public class ChatActivity extends BaseFragment implements
         // na: unread count
         getNotificationCenter().addObserver(this, NotificationCenter.dialogsUnreadCounterChanged);
 
+        // na: chat name translation
+        getNotificationCenter().addObserver(this, NotificationCenter.chatNameTranslated);
+
         if (chatMode != MODE_SCHEDULED) {
             if (threadMessageId == 0) {
                 observersGroup
@@ -3626,6 +3629,9 @@ public class ChatActivity extends BaseFragment implements
 
         // na: unread count
         getNotificationCenter().removeObserver(this, NotificationCenter.dialogsUnreadCounterChanged);
+
+        // na: chat name translation
+        getNotificationCenter().removeObserver(this, NotificationCenter.chatNameTranslated);
 
         getNotificationCenter().removePostponeNotificationsCallback(postponeNotificationsWhileLoadingCallback);
         getMessagesController().setLastCreatedDialogId(dialog_id, chatMode == MODE_SCHEDULED, false);
@@ -20335,7 +20341,7 @@ public class ChatActivity extends BaseFragment implements
                         if (chat == null) chat = currentChat;
                         avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat.scam, chat.fake, chat.verifiedExtended(), false, chat.emoji_status, animated);
                     } else {
-                        avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat.scam, currentChat.fake, currentChat.verifiedExtended(), false, currentChat.emoji_status, animated);
+                        avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(ChatNameTrans.name(currentAccount, currentChat))), currentChat.scam, currentChat.fake, currentChat.verifiedExtended(), false, currentChat.emoji_status, animated);
                     }
                 } else if (threadMessageId > 0) {
                     final TLRPC.User user = getMessagesController().getUser(threadMessageId);
@@ -20346,7 +20352,7 @@ public class ChatActivity extends BaseFragment implements
                     avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(chat.title)), chat.scam, chat.fake, chat.verifiedExtended(), false, chat.emoji_status, animated);
                 }
             } else {
-                avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat.scam, currentChat.fake, currentChat.verifiedExtended(), false, currentChat.emoji_status, animated);
+                avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(ChatNameTrans.name(currentAccount, currentChat))), currentChat.scam, currentChat.fake, currentChat.verifiedExtended(), false, currentChat.emoji_status, animated);
             }
         } else if (chatMode == MODE_WELCOME_MESSAGES) {
             avatarContainer.setTitle(getString(R.string.WelcomeMessage));
@@ -20411,7 +20417,7 @@ public class ChatActivity extends BaseFragment implements
         } else if (chatMode == MODE_PINNED) {
             avatarContainer.setTitle(LocaleController.formatPluralString("PinnedMessagesCount", getPinnedMessagesCount()));
         } else if (currentChat != null) {
-            avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(currentChat.title)), currentChat.scam, currentChat.fake, currentChat.verifiedExtended(), false, currentChat.emoji_status, animated);
+            avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(ChatNameTrans.name(currentAccount, currentChat))), currentChat.scam, currentChat.fake, currentChat.verifiedExtended(), false, currentChat.emoji_status, animated);
         } else if (currentUser != null) {
             if (currentUser.self) {
                 avatarContainer.setTitle(LocaleController.getString(R.string.SavedMessages));
@@ -25201,6 +25207,11 @@ public class ChatActivity extends BaseFragment implements
                 if (actionBar != null) { // NekoX
                     actionBar.unreadBadgeSetCount(getMessagesStorage().getMainUnreadCount());
                 }
+            } else if (id == NotificationCenter.chatNameTranslated) {
+                long did = (Long) args[0];
+                if (did == dialog_id) {
+                    updateTitle(true);
+                }
             }
         } else if (id == NotificationCenter.dialogTranslate) {
             final long dialogId = (long) args[0];
@@ -25673,6 +25684,7 @@ public class ChatActivity extends BaseFragment implements
             if (pinnedMessageObject != null && pinnedMessageObject.getId() == messageObject.getId()) {
                 pinnedMessageObject.messageOwner.translatedText = messageObject.messageOwner.translatedText;
                 pinnedMessageObject.messageOwner.translatedToLanguage = messageObject.messageOwner.translatedToLanguage;
+                pinnedMessageObject.messageOwner.translatedButtons = messageObject.messageOwner.translatedButtons;
                 if (pinnedMessageObject.updateTranslation(true)) {
                     updatePinnedMessageView(true, 1);
                     updated = true;
@@ -25695,6 +25707,7 @@ public class ChatActivity extends BaseFragment implements
                 if (cellMessageObject.getId() == messageObject.getId()) {
                     cellMessageObject.messageOwner.translatedText = messageObject.messageOwner.translatedText;
                     cellMessageObject.messageOwner.translatedToLanguage = messageObject.messageOwner.translatedToLanguage;
+                    cellMessageObject.messageOwner.translatedButtons = messageObject.messageOwner.translatedButtons;
                     cellMessageObject.messageOwner.summaryText = messageObject.messageOwner.summaryText;
                     cellMessageObject.messageOwner.translatedSummaryText = messageObject.messageOwner.translatedSummaryText;
                     cellMessageObject.messageOwner.translatedSummaryLanguage = messageObject.messageOwner.translatedSummaryLanguage;
@@ -25719,6 +25732,7 @@ public class ChatActivity extends BaseFragment implements
                 if (cellMessageObject.replyMessageObject != null && cellMessageObject.replyMessageObject.getId() == messageObject.getId() && cellMessageObject.replyMessageObject.getDialogId() == messageObject.getDialogId()) {
                     cellMessageObject.replyMessageObject.messageOwner.translatedText = messageObject.messageOwner.translatedText;
                     cellMessageObject.replyMessageObject.messageOwner.translatedToLanguage = messageObject.messageOwner.translatedToLanguage;
+                    cellMessageObject.replyMessageObject.messageOwner.translatedButtons = messageObject.messageOwner.translatedButtons;
                     cellMessageObject.replyMessageObject.messageOwner.translatedSummaryText = messageObject.messageOwner.translatedSummaryText;
                     cellMessageObject.replyMessageObject.messageOwner.translatedSummaryLanguage = messageObject.messageOwner.translatedSummaryLanguage;
                     if (cellMessageObject.replyMessageObject.updateTranslation(false)) {
@@ -29379,6 +29393,27 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
             if (pinnedMessageObject != null) {
+                // Nagram: the pinned message is usually off screen, so neither the
+                // cell driven auto translation nor the dialog wide translation reaches
+                // it; ask for its translation so the banner shows it translated.
+                final MessageObject pinnedToTranslate = pinnedMessageObject;
+                if (!pinnedToTranslate.translated && !pinnedToTranslate.translating) {
+                    if (DialogConfig.isAutoTranslateEnable(dialog_id, getTopicId()) && LanguageDetector.hasSupport()) {
+                        String pinnedSource = MessageHelper.getMessagePlainText(pinnedToTranslate);
+                        if (!TextUtils.isEmpty(pinnedSource)) {
+                            LanguageDetector.detectLanguage(pinnedSource, lang -> {
+                                if (!isLanguageRestricted(lang)) {
+                                    ArrayList<MessageObject> fmessages = new ArrayList<>(Arrays.asList(pinnedToTranslate));
+                                    MessageTransKt.translateMessages(ChatActivity.this, fmessages, true);
+                                }
+                            }, e -> {
+                                getMessagesController().getTranslateController().checkTranslation(pinnedToTranslate, true);
+                            });
+                        }
+                    } else {
+                        getMessagesController().getTranslateController().checkTranslation(pinnedToTranslate, true);
+                    }
+                }
                 if (pinnedMessageView != null && pinnedMessageView.getTag() != null) {
                     pinnedMessageView.setTag(null);
                     changed = true;
@@ -29403,7 +29438,9 @@ public class ChatActivity extends BaseFragment implements
                 pinnedMessageButton[animateToNext != 0 ? 0 : 1].setOnClickListener(null);
                 pinnedMessageButton[animateToNext != 0 ? 0 : 1].setOnLongClickListener(null);
                 if (botButton != null) {
-                    CharSequence string = new SpannableString(botButton.text);
+                    // Nagram: the pinned banner button is markup[0][0], so its
+                    // translation, when one exists, is translatedButtons index 0.
+                    CharSequence string = new SpannableString(pinnedMessageObject.getBotButtonText(0, botButton.text));
                     if (TLKeyboardHelper.isType(botButton, TL_keyboard.TL_inlineButtonTypeBuy.class) && pinnedMessageObject != null && MessageObject.getMedia(pinnedMessageObject.messageOwner) instanceof TLRPC.TL_messageMediaInvoice) {
                         string = StarsIntroActivity.replaceStars(string);
                     }

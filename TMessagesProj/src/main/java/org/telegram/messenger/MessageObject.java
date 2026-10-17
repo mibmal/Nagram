@@ -3742,7 +3742,7 @@ public class MessageObject {
             TranslateController.isTranslatable(this) &&
             translateController.isTranslatingDialog(getDialogId()) &&
             !translateController.isTranslateDialogHidden(getDialogId()) &&
-            (translatedText != null || messageOwner.translatedPoll != null || messageOwner.translatedRichMessage != null) &&
+            (translatedText != null || messageOwner.translatedPoll != null || messageOwner.translatedRichMessage != null || messageOwner.translatedButtons != null) &&
             TextUtils.equals(translateController.getDialogTranslateTo(getDialogId()), messageOwner.translatedToLanguage)
         ) {
             if (translated && !summarized) {
@@ -3757,7 +3757,10 @@ public class MessageObject {
                 generateCaption();
             }
             return replyUpdated || true;
-        } else if (messageOwner != null && translatedLocally && (translatedText != null || messageOwner.translatedPoll != null)) {
+        } else if (messageOwner != null && translatedLocally && (translatedText != null || messageOwner.translatedPoll != null
+                // NekoX: a message can be translatable for its extras alone (bot
+                // keyboard with no caption, link preview with no text).
+                || messageOwner.translatedButtons != null || messageOwner.translatedButtonTexts != null || messageOwner.translatedWebPageTitle != null || messageOwner.translatedWebPageDescription != null)) {
             // NekoX: translations produced by third party providers are bound to the message
             // itself instead of the dialog wide auto translation setting.
             if (translated && !summarized) {
@@ -4548,6 +4551,28 @@ public class MessageObject {
         return inlineKeyboardSource;
     }
 
+    /**
+     * Nagram: the text to display on an inline bot keyboard button. `index` is the
+     * button's row-major position in the reply_markup; when the chat is translated
+     * and the labels were translated, the translated label replaces the original.
+     */
+    public String getBotButtonText(int index, String original) {
+        // `translated` covers the upstream pipeline, `messageOwner.translated` the NekoX
+        // providers (LLM and friends), which mark the translation on the message itself.
+        if (messageOwner == null || !(translated || messageOwner.translated)) {
+            return original;
+        }
+        final TranslateController.ButtonsText buttonsText = messageOwner.translatedButtons;
+        if (buttonsText == null || index < 0 || index >= buttonsText.texts.size()) {
+            return original;
+        }
+        final TLRPC.TL_textWithEntities text = buttonsText.texts.get(index);
+        if (text == null || TextUtils.isEmpty(text.text)) {
+            return original;
+        }
+        return text.text;
+    }
+
     public boolean hasInlineBotButtons() {
         return !isRestrictedMessage && !isRepostPreview && messageOwner != null && (messageOwner.reply_markup instanceof TLRPC.TL_replyInlineMarkup && !((TLRPC.TL_replyInlineMarkup) messageOwner.reply_markup).rows.isEmpty() || getInlineBotButtons() != null);
     }
@@ -4587,6 +4612,7 @@ public class MessageObject {
         }
 
         if (inlineKeyboard != null && !hasExtendedMedia()) {
+            int botButtonIndex = 0;
             for (int a = 0; a < inlineKeyboard.getRowsCount(); a++) {
                 int maxButtonSize = 0;
                 int size = inlineKeyboard.getColumnsCount(a);
@@ -4598,6 +4624,11 @@ public class MessageObject {
                         text = getString(R.string.PaymentReceipt);
                     } else {
                         String str = button.getText();
+                        // Nagram: measure with the translated label, so the button
+                        // is laid out with the width of what will be drawn on it.
+                        if (button instanceof BotInlineKeyboard.ButtonBot) {
+                            str = getBotButtonText(botButtonIndex++, str);
+                        }
                         if (str == null) {
                             str = "";
                         }
