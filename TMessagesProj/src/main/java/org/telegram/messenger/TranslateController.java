@@ -1330,6 +1330,8 @@ public class TranslateController extends BaseController {
         if (!loadingButtonTranslations.add(id)) {
             return;
         }
+        // `count` is mutated while collecting the labels; the lambda needs a final copy.
+        final int total = count;
         final String toLang = normalizeLanguage(language);
         Utilities.Callback2<ArrayList<TLRPC.TL_textWithEntities>, String> done = (translated, lang) -> {
             if (!loadingButtonTranslations.remove(id)) {
@@ -1341,7 +1343,7 @@ public class TranslateController extends BaseController {
             }
             final ButtonsText buttonsText = new ButtonsText();
             buttonsText.lang = lang;
-            for (int i = 0; i < count; i++) {
+            for (int i = 0; i < total; i++) {
                 buttonsText.texts.add(new TLRPC.TL_textWithEntities());
             }
             for (int i = 0; i < translated.size(); i++) {
