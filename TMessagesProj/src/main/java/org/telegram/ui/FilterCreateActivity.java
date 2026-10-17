@@ -269,7 +269,7 @@ public class FilterCreateActivity extends BaseFragment implements NotificationCe
     }
 
     @Override
-    public void didReceivedNotification(int id, Object... args) {
+    public void didReceivedNotification(int id, int account, Object... args) {
         if (id == NotificationCenter.chatNameTranslated) {
             // na: a chat title translation arrived; refresh the visible chat rows.
             if (listView != null) {
