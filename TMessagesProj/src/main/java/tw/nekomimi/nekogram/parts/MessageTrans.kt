@@ -22,6 +22,7 @@ import tw.nekomimi.nekogram.NekoConfig
 import tw.nekomimi.nekogram.transtale.TranslateDb
 import tw.nekomimi.nekogram.transtale.Translator
 import tw.nekomimi.nekogram.transtale.code2Locale
+import tw.nekomimi.nekogram.transtale.source.UnusableTranslationException
 import tw.nekomimi.nekogram.utils.AlertUtil
 import tw.nekomimi.nekogram.utils.UIUtil
 import tw.nekomimi.nekogram.utils.uDismiss
@@ -216,6 +217,11 @@ internal suspend fun translateWithRetry(
         } catch (e: CancellationException) {
             throw e
         } catch (e: UnsupportedOperationException) {
+            throw e
+        } catch (e: UnusableTranslationException) {
+            // The provider cannot produce this translation (e.g. the CPU
+            // failover backend leaving Chinese in an English result); the
+            // original message shows instead, and nothing is cached.
             throw e
         } catch (e: Exception) {
             if (++attempt >= 5 || cancel.get()) throw e

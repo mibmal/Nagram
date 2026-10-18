@@ -18,6 +18,14 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.pow
 import kotlin.random.Random
 
+/** A provider reply that still contained source-language characters after
+ *  the one CJK retry, for a target language with no CJK of its own. The
+ *  backend cannot translate this text right now; callers show the original
+ *  instead of wrong-language output, and neither this class of failure nor
+ *  its result is cached. */
+class UnusableTranslationException(targetLanguage: String) :
+    Exception("the provider left source-language characters in the output for target $targetLanguage")
+
 object LLMTranslator : Translator {
 
     // Provider constants: 0-10 presets, 11 custom
@@ -167,6 +175,15 @@ object LLMTranslator : Translator {
                         else -> doOpenAIChatTranslate(baseUrl, apiKey, model, retryPrompt, userPrompt, temperature)
                     }
                     if (!containsCjk(secondPass)) return secondPass
+                    // Both passes kept source-language characters for a
+                    // non-CJK target: this backend cannot produce the
+                    // translation (the home cluster's CPU failover model
+                    // does this on short label-like strings). Fail rather
+                    // than return firstPass -- a failure keeps the original
+                    // message and caches nothing, while the CJK output would
+                    // be displayed (and cached per locale) as if it were
+                    // the correct translation.
+                    throw UnusableTranslationException(targetLanguage)
                 }
                 return firstPass
             } catch (e: RateLimitException) {
@@ -175,6 +192,11 @@ object LLMTranslator : Translator {
                     delay(calculateBackoff(attempt))
                     continue
                 }
+            } catch (e: UnusableTranslationException) {
+                // Retrying the same text on the same backend reproduces the
+                // same characters (verified against the CPU fallback); burn
+                // no further attempts.
+                throw e
             } catch (e: Exception) {
                 lastException = e
                 if (attempt < MAX_RETRY - 1) {
