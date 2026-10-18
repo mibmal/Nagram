@@ -2685,7 +2685,8 @@ public class LimitReachedBottomSheet extends BottomSheetWithRecyclerListView imp
                 + "\nServer limits: " + controller.channelsLimitDefault + " / " + controller.channelsLimitPremium
                 + "\n\nServer list (getInactiveChannels): " + chats.chats.size()
                 + "\n  channels " + channels + ", supergroups " + supergroups + ", groups " + groups + ", marked left " + left
-                + "\n\nApp chat list: " + localChats + " groups/channels (" + localArchived + " archived)";
+                + "\n\nApp chat list: " + localChats + " groups/channels (" + localArchived + " archived)"
+                + "\n\nFailing request: " + tw.nekomimi.nekogram.JoinFailureLog.lastFailure();
     }
 
     private boolean diagnosticShown;

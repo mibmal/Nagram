@@ -391,6 +391,12 @@ public class AlertsCreator {
                 request instanceof TLRPC.TL_messages_editChatAdmin ||
                 request instanceof TLRPC.TL_messages_migrateChat ||
                 request instanceof TL_phone.inviteToGroupCall) {
+            if (error.text.equals("CHANNELS_TOO_MUCH")) {
+                // Personal-build diagnostic: official clients could still
+                // join with the same account, so keep what exactly failed
+                // for the join-limit diagnostic to show.
+                tw.nekomimi.nekogram.JoinFailureLog.record(currentAccount, request);
+            }
             if (fragment != null && error.text.equals("CHANNELS_TOO_MUCH")) {
                 if (fragment.getParentActivity() != null) {
                     fragment.showDialog(new LimitReachedBottomSheet(fragment, fragment.getParentActivity(), LimitReachedBottomSheet.TYPE_TO0_MANY_COMMUNITIES, currentAccount, null));
@@ -433,6 +439,7 @@ public class AlertsCreator {
                 fragment = LaunchActivity.getLastFragment();
             }
             if (error.text.equals("CHANNELS_TOO_MUCH")) {
+                tw.nekomimi.nekogram.JoinFailureLog.record(currentAccount, request);
                 if (fragment.getParentActivity() != null) {
                     fragment.showDialog(new LimitReachedBottomSheet(fragment, fragment.getParentActivity(), LimitReachedBottomSheet.TYPE_TO0_MANY_COMMUNITIES, currentAccount, null));
                 } else {
