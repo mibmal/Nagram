@@ -22,7 +22,6 @@ import tw.nekomimi.nekogram.NekoConfig
 import tw.nekomimi.nekogram.transtale.TranslateDb
 import tw.nekomimi.nekogram.transtale.Translator
 import tw.nekomimi.nekogram.transtale.code2Locale
-import tw.nekomimi.nekogram.transtale.source.LLMTranslator
 import tw.nekomimi.nekogram.transtale.source.UnusableTranslationException
 import tw.nekomimi.nekogram.utils.AlertUtil
 import tw.nekomimi.nekogram.utils.UIUtil
@@ -545,26 +544,4 @@ private fun MessageObject.textSource(): TLRPC.TL_textWithEntities? {
         it.text = text
         it.entities = messageOwner.entities
     }
-}
-
-/**
- * CJK ideographs anywhere in a message's translatable surfaces: the text,
- * the inline keyboard button labels, and the link preview's title and
- * description. The auto-translate gate overrides MLKit's language verdict
- * with this -- a message carrying Chinese is never "already" a non-CJK
- * target language, whichever surface holds the characters (e.g. an English
- * bot message with Chinese button labels, or an English text with a
- * Chinese link preview).
- */
-fun messageSurfacesContainCjk(message: MessageObject): Boolean {
-    val owner = message.messageOwner ?: return false
-    if (LLMTranslator.containsCjk(owner.message ?: "")) return true
-    val markup = owner.reply_markup as? TLRPC.TL_replyInlineMarkup
-    if (markup != null && markup.rows.any { row -> row.buttons.any { LLMTranslator.containsCjk(it.text ?: "") } }) return true
-    val page = message.linkWebPage()
-    if (page != null) {
-        if (LLMTranslator.containsCjk(page.title ?: "")) return true
-        if (LLMTranslator.containsCjk(page.description ?: "")) return true
-    }
-    return false
 }

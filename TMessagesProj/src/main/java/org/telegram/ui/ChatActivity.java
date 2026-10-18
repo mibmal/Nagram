@@ -387,7 +387,6 @@ import tw.nekomimi.nekogram.parts.ChatNameTrans;
 import tw.nekomimi.nekogram.parts.MessageTransKt;
 import tw.nekomimi.nekogram.settings.NekoSettingsActivity;
 import tw.nekomimi.nekogram.transtale.Translator;
-import tw.nekomimi.nekogram.transtale.popupwrapper.LanguageDetector;
 import tw.nekomimi.nekogram.ui.BottomBuilder;
 import tw.nekomimi.nekogram.ui.MessageDetailsActivity;
 import tw.nekomimi.nekogram.utils.AlertUtil;
@@ -29400,17 +29399,16 @@ public class ChatActivity extends BaseFragment implements
                 // it; ask for its translation so the banner shows it translated.
                 final MessageObject pinnedToTranslate = pinnedMessageObject;
                 if (!pinnedToTranslate.translated && !pinnedToTranslate.translating) {
-                    if (DialogConfig.isAutoTranslateEnable(dialog_id, getTopicId()) && LanguageDetector.hasSupport()) {
+                    if (DialogConfig.isAutoTranslateEnable(dialog_id, getTopicId())) {
+                        // No MLKit language gate: it misreads Cantonese chat
+                        // slang that starts with Latin letters or an emoji as
+                        // English and silently skipped the message. Translate
+                        // everything; the provider echoes text that is already
+                        // in the target language.
                         String pinnedSource = MessageHelper.getMessagePlainText(pinnedToTranslate);
                         if (!TextUtils.isEmpty(pinnedSource)) {
-                            LanguageDetector.detectLanguage(pinnedSource, lang -> {
-                                if (!isLanguageRestricted(lang)) {
-                                    ArrayList<MessageObject> fmessages = new ArrayList<>(Arrays.asList(pinnedToTranslate));
-                                    MessageTransKt.translateMessages(ChatActivity.this, fmessages, true);
-                                }
-                            }, e -> {
-                                getMessagesController().getTranslateController().checkTranslation(pinnedToTranslate, true);
-                            });
+                            ArrayList<MessageObject> fmessages = new ArrayList<>(Arrays.asList(pinnedToTranslate));
+                            MessageTransKt.translateMessages(ChatActivity.this, fmessages, true);
                         }
                     } else {
                         getMessagesController().getTranslateController().checkTranslation(pinnedToTranslate, true);
@@ -39440,24 +39438,18 @@ public class ChatActivity extends BaseFragment implements
                         startMessageUnselect();
                     }
                 }
-                if (DialogConfig.isAutoTranslateEnable(dialog_id, getTopicId()) && LanguageDetector.hasSupport()) {
+                if (DialogConfig.isAutoTranslateEnable(dialog_id, getTopicId())) {
                     final var messageObject = messageCell.getMessageObject();
                     if (MessageHelper.isMessageObjectAutoTranslatable(messageObject)) {
                         final String plainText = MessageHelper.getMessagePlainText(messageObject);
                         if (plainText != null) {
-                            LanguageDetector.detectLanguage(
-                                    plainText,
-                                    (String lang) -> {
-                                        if (!isLanguageRestricted(lang) || (!isTargetLanguageCjk() && MessageTransKt.messageSurfacesContainCjk(messageObject))) {
-                                            ArrayList<MessageObject> fmessages = new ArrayList<>(Arrays.asList(messageObject));
-                                            MessageTransKt.translateMessages(ChatActivity.this, fmessages, true);
-                                        }
-                                    },
-                                    (Exception e) -> {
-                                        FileLog.e("mlkit: failed to detect language in message");
-                                        e.printStackTrace();
-                                        messageObject.translating = false;
-                                    });
+                            // No MLKit language gate: it misreads Cantonese chat
+                            // slang that starts with Latin letters or an emoji
+                            // as English and silently skipped the message.
+                            // Translate everything; the provider echoes text
+                            // that is already in the target language.
+                            ArrayList<MessageObject> fmessages = new ArrayList<>(Arrays.asList(messageObject));
+                            MessageTransKt.translateMessages(ChatActivity.this, fmessages, true);
                         }
                     }
                 }
@@ -46584,56 +46576,6 @@ public class ChatActivity extends BaseFragment implements
             layoutParams.height = AndroidUtilities.dp(36);
             editText.setLayoutParams(layoutParams);
         }
-    }
-
-    private boolean isLanguageRestricted(String lang) {
-        if (lang == null || lang.equals("und")) {
-            return false;
-        }
-        String toLang = NekoConfig.translateToLang.String();
-        if (toLang == null || toLang.isEmpty()) {
-            toLang = LocaleController.getInstance().currentLocale.getLanguage();
-        }
-        if (toLang.contains("-")) {
-            toLang = toLang.substring(0, toLang.indexOf("-"));
-        }
-        if (lang.contains("-")) {
-            lang = lang.substring(0, lang.indexOf("-"));
-        }
-        if (lang.equals(toLang)) {
-            return true;
-        }
-        boolean restricted = false;
-        for (String language : RestrictedLanguagesSelectActivity.getRestrictedLanguages()) {
-            if (language.contains("_")) {
-                language = language.substring(0, language.indexOf("_"));
-            }
-            if (language.equals(lang)) {
-                restricted = true;
-                break;
-            }
-        }
-        return restricted;
-    }
-
-    /**
-     * The auto-translate skip assumes a detected language equal to the target
-     * means "already in the target language". A message carrying CJK
-     * ideographs is never already a non-CJK target language: MLKit misreads
-     * Cantonese chat slang that happens to start with Latin letters (a name
-     * like "MA...") as English, which silently skipped those messages from
-     * auto-translation. The detect callback overrides the skip whenever CJK
-     * is present and the target has none of its own.
-     */
-    private boolean isTargetLanguageCjk() {
-        String toLang = NekoConfig.translateToLang.String();
-        if (toLang == null || toLang.isEmpty()) {
-            toLang = LocaleController.getInstance().currentLocale.getLanguage();
-        }
-        if (toLang.contains("-")) {
-            toLang = toLang.substring(0, toLang.indexOf("-"));
-        }
-        return toLang.startsWith("zh") || toLang.equals("ja") || toLang.equals("yue");
     }
 
     private class RecyclerListViewInternal extends RecyclerListView implements StoriesListPlaceProvider.ClippedView {
