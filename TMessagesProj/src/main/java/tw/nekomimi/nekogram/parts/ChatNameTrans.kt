@@ -15,6 +15,7 @@ import tw.nekomimi.nekogram.transtale.TranslateDb
 import tw.nekomimi.nekogram.transtale.Translator
 import tw.nekomimi.nekogram.transtale.code2Locale
 import tw.nekomimi.nekogram.transtale.popupwrapper.LanguageDetector
+import tw.nekomimi.nekogram.transtale.source.LLMTranslator
 import tw.nekomimi.nekogram.utils.UIUtil
 import xyz.nextalone.nagram.NaConfig
 import java.util.concurrent.ConcurrentHashMap
@@ -74,7 +75,7 @@ object ChatNameTrans {
         LanguageDetector.detectLanguage(
             title,
             { lang ->
-                if (isLanguageRestricted(lang, target)) {
+                if (isLanguageRestricted(lang, target) && !isCjkOverride(lang, title, target)) {
                     FileLog.e("[ChatNameTrans] '$title' detected as '$lang', restricted for target '$target'; keeping original")
                     store(chatId, title, target, null)
                 } else {
@@ -115,6 +116,24 @@ object ChatNameTrans {
     }
 
     /** The same restricted language rule as the chat auto translation. */
+    /** Same override as the message auto-translation: a title carrying CJK
+     *  ideographs is never already a non-CJK target language -- MLKit misreads
+     *  Cantonese titles that start with Latin letters as English -- so CJK
+     *  present + non-CJK target always translates, detected language or not. */
+    private fun isCjkOverride(lang: String?, title: String, target: String): Boolean {
+        if (lang == null || lang == "und") {
+            return false
+        }
+        if (!LLMTranslator.containsCjk(title)) {
+            return false
+        }
+        var toLang = target
+        if (toLang.contains("-")) {
+            toLang = toLang.substring(0, toLang.indexOf("-"))
+        }
+        return !(toLang.startsWith("zh") || toLang == "ja" || toLang == "yue")
+    }
+
     private fun isLanguageRestricted(lang: String?, target: String): Boolean {
         if (lang == null || lang == "und") {
             return false

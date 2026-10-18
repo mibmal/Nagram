@@ -388,6 +388,7 @@ import tw.nekomimi.nekogram.parts.MessageTransKt;
 import tw.nekomimi.nekogram.settings.NekoSettingsActivity;
 import tw.nekomimi.nekogram.transtale.Translator;
 import tw.nekomimi.nekogram.transtale.popupwrapper.LanguageDetector;
+import tw.nekomimi.nekogram.transtale.source.LLMTranslator;
 import tw.nekomimi.nekogram.ui.BottomBuilder;
 import tw.nekomimi.nekogram.ui.MessageDetailsActivity;
 import tw.nekomimi.nekogram.utils.AlertUtil;
@@ -39448,7 +39449,7 @@ public class ChatActivity extends BaseFragment implements
                             LanguageDetector.detectLanguage(
                                     plainText,
                                     (String lang) -> {
-                                        if (!isLanguageRestricted(lang)) {
+                                        if (!isLanguageRestricted(lang) || (!isTargetLanguageCjk() && LLMTranslator.containsCjk(plainText))) {
                                             ArrayList<MessageObject> fmessages = new ArrayList<>(Arrays.asList(messageObject));
                                             MessageTransKt.translateMessages(ChatActivity.this, fmessages, true);
                                         }
@@ -46614,6 +46615,26 @@ public class ChatActivity extends BaseFragment implements
             }
         }
         return restricted;
+    }
+
+    /**
+     * The auto-translate skip assumes a detected language equal to the target
+     * means "already in the target language". A message carrying CJK
+     * ideographs is never already a non-CJK target language: MLKit misreads
+     * Cantonese chat slang that happens to start with Latin letters (a name
+     * like "MA...") as English, which silently skipped those messages from
+     * auto-translation. The detect callback overrides the skip whenever CJK
+     * is present and the target has none of its own.
+     */
+    private boolean isTargetLanguageCjk() {
+        String toLang = NekoConfig.translateToLang.String();
+        if (toLang == null || toLang.isEmpty()) {
+            toLang = LocaleController.getInstance().currentLocale.getLanguage();
+        }
+        if (toLang.contains("-")) {
+            toLang = toLang.substring(0, toLang.indexOf("-"));
+        }
+        return toLang.startsWith("zh") || toLang.equals("ja") || toLang.equals("yue");
     }
 
     private class RecyclerListViewInternal extends RecyclerListView implements StoriesListPlaceProvider.ClippedView {
