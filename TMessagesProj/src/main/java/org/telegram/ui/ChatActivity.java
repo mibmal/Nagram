@@ -388,7 +388,6 @@ import tw.nekomimi.nekogram.parts.MessageTransKt;
 import tw.nekomimi.nekogram.settings.NekoSettingsActivity;
 import tw.nekomimi.nekogram.transtale.Translator;
 import tw.nekomimi.nekogram.transtale.popupwrapper.LanguageDetector;
-import tw.nekomimi.nekogram.transtale.source.LLMTranslator;
 import tw.nekomimi.nekogram.ui.BottomBuilder;
 import tw.nekomimi.nekogram.ui.MessageDetailsActivity;
 import tw.nekomimi.nekogram.utils.AlertUtil;
@@ -39449,7 +39448,7 @@ public class ChatActivity extends BaseFragment implements
                             LanguageDetector.detectLanguage(
                                     plainText,
                                     (String lang) -> {
-                                        if (!isLanguageRestricted(lang) || (!isTargetLanguageCjk() && LLMTranslator.containsCjk(plainText))) {
+                                        if (!isLanguageRestricted(lang) || (!isTargetLanguageCjk() && MessageTransKt.messageSurfacesContainCjk(messageObject))) {
                                             ArrayList<MessageObject> fmessages = new ArrayList<>(Arrays.asList(messageObject));
                                             MessageTransKt.translateMessages(ChatActivity.this, fmessages, true);
                                         }
