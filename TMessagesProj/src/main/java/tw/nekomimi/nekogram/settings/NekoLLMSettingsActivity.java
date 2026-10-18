@@ -23,8 +23,10 @@ import tw.nekomimi.nekogram.config.cell.ConfigCellCustom;
 import tw.nekomimi.nekogram.config.cell.ConfigCellDivider;
 import tw.nekomimi.nekogram.config.cell.ConfigCellHeader;
 import tw.nekomimi.nekogram.config.cell.ConfigCellSelectBox;
+import tw.nekomimi.nekogram.config.cell.ConfigCellText;
 import tw.nekomimi.nekogram.config.cell.ConfigCellTextCheck;
 import tw.nekomimi.nekogram.config.cell.ConfigCellTextInput;
+import tw.nekomimi.nekogram.transtale.TranslateDb;
 import tw.nekomimi.nekogram.transtale.source.LLMTranslator;
 import xyz.nextalone.nagram.NaConfig;
 
@@ -78,6 +80,14 @@ public class NekoLLMSettingsActivity extends BaseNekoXSettingsActivity {
 
     // --- Test section ---
     private final AbstractConfigCell llmTestConnectionRow = cellGroup.appendCell(new ConfigCellCustom("LLMTestConnection", CellGroup.ITEM_TYPE_TEXT_SETTINGS_CELL, true));
+
+    // A bad translation (e.g. wrong-language output from a weak failover
+    // backend) is cached per locale in TranslateDb and re-displayed forever;
+    // until now only the destructive clearLocalDatabase() could purge it.
+    private final AbstractConfigCell llmClearCacheRow = cellGroup.appendCell(new ConfigCellText("ClearTranslationCache", () -> {
+        TranslateDb.clearAll();
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.done, LocaleController.getString("ClearTranslationCacheDone", R.string.ClearTranslationCacheDone)).show();
+    }));
     private final AbstractConfigCell dividerTest = cellGroup.appendCell(new ConfigCellDivider());
 
     @Override

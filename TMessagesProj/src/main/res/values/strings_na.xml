@@ -290,6 +290,8 @@
     <string name="LLMModelNameNotice">Enter the model name (e.g., gpt-4o-mini)</string>
     <string name="LLMSystemPromptNotice">Custom system instructions. Leave empty to use the safe default.</string>
     <string name="LLMTranslationPromptNotice">Use @toLang and @text placeholders; leave empty to use the default.</string>
+    <string name="ClearTranslationCache">Clear Translation Cache</string>
+    <string name="ClearTranslationCacheDone">Translation cache cleared</string>
     <string name="LLMApiFormat">API Format</string>
     <string name="LLMApiFormatOpenAIChat">OpenAI (Chat)</string>
     <string name="LLMApiFormatOpenAIResponse">OpenAI (Response)</string>
