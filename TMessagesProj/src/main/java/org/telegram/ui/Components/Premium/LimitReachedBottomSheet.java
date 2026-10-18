@@ -2697,6 +2697,18 @@ public class LimitReachedBottomSheet extends BottomSheetWithRecyclerListView imp
         new AlertDialog.Builder(getContext(), resourcesProvider)
                 .setTitle("Join limit diagnostic")
                 .setMessage(text)
+                // The chat title can carry characters the reader cannot type;
+                // copy the whole attribution (failing request, account, peer,
+                // time) instead.
+                .setNegativeButton(LocaleController.getString(R.string.Copy), (dialogInterface, i) -> {
+                    AndroidUtilities.addToClipboard(text);
+                    try {
+                        BulletinFactory.of((FrameLayout) containerView, resourcesProvider)
+                                .createSimpleBulletin(R.raw.done, LocaleController.getString(R.string.TextCopied))
+                                .show();
+                    } catch (Exception ignored) {
+                    }
+                })
                 .setPositiveButton(LocaleController.getString(R.string.OK), null)
                 .show();
     }
