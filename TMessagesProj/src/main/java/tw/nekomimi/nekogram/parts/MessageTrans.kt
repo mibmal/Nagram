@@ -534,7 +534,9 @@ private fun ChatActivity.handleError(
     if (autoTranslate) {
         FileLog.e("auto translate failed: ${error.message ?: error.javaClass.simpleName}")
         val minutes = AUTO_TRANSLATE_PAUSE_MINUTES.getOrElse(NaConfig.autoTranslatePauseMinutes.Int()) { 0 }
-        if (minutes > 0 && error !is UnsupportedOperationException) {
+        // Pause only when the server itself is failing. One message the model could not translate
+        // (it echoed the source back) used to pause auto-translation for everything after it.
+        if (minutes > 0 && error !is UnsupportedOperationException && error !is UnusableTranslationException) {
             autoTranslatePausedUntil = System.currentTimeMillis() + minutes * 60_000L
         }
         return

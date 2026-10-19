@@ -66,10 +66,17 @@ class TranslateDb(val code: String) {
         conn.removeAll()
     }
 
-    fun contains(text: String) =
-        synchronized(this) { queryTransItemModel(conn, code, text) != null }
+    fun contains(text: String) = query(text) != null
+
+    private val targetIsCjk = code.startsWith("zh", true) || code.startsWith("ja", true) || code.startsWith("yue", true)
+
+    /** A "translation" into a non-CJK language that still contains Chinese/Japanese is an echo of the
+     *  source (older builds cached those); never store it and never serve it. */
+    private fun isEcho(trans: String) =
+        !targetIsCjk && tw.nekomimi.nekogram.transtale.source.LLMTranslator.containsCjk(trans)
 
     fun save(text: String, trans: String) = synchronized<Unit>(this) {
+        if (isEcho(trans)) return@synchronized
         var model = queryTransItemModel(conn, code, text)
         if (model != null) {
             model.trans = trans;
@@ -79,7 +86,13 @@ class TranslateDb(val code: String) {
         conn.put(model)
     }
 
-    fun query(text: String) = synchronized(this) {
-        queryTransItemModel(conn, code, text)?.trans
+    fun query(text: String): String? = synchronized(this) {
+        val model = queryTransItemModel(conn, code, text) ?: return@synchronized null
+        val trans = model.trans
+        if (trans == null || isEcho(trans)) {
+            conn.remove(model)
+            return@synchronized null
+        }
+        trans
     }
 }

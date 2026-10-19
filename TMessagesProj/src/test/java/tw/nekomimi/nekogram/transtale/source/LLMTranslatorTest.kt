@@ -117,4 +117,19 @@ class LLMTranslatorTest {
         assertEquals(null, LLMTranslator.cleanModelOutput("<think>x</think>   "))
         assertEquals(null, LLMTranslator.cleanModelOutput(null))
     }
+
+    @Test
+    fun detectsCantoneseCharactersOutsideTheBasicHanBlock() {
+        assertTrue(LLMTranslator.containsCjk("MA 佢哋"))
+        assertTrue(LLMTranslator.containsCjk("\uD83D\uDE02 \u35CE")) // emoji + Extension A
+        assertTrue(LLMTranslator.containsCjk("\uD860\uDEE2")) // U+282E2, Extension B
+        assertFalse(LLMTranslator.containsCjk("Hello \uD83D\uDE02 123"))
+    }
+
+    @Test
+    fun systemPromptTellsTheModelToTranslateMixedText() {
+        val prompt = LLMTranslator.buildSystemPrompt(null, "auto", "en", "English", emptyList())
+        assertTrue(prompt.contains("even when it starts with words, names, numbers or emoji"))
+        assertTrue(prompt.contains("Target language: en. (English)"))
+    }
 }
