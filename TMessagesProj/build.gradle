@@ -195,6 +195,14 @@ android {
         buildConfigField "String", "OFFICIAL_VERSION", "\"" + officialVer + "\""
         buildConfigField "int", "OFFICIAL_VERSION_CODE", officialCode + ""
         buildConfigField "int", "APP_ID", appId
+
+        // Personal endpoints are injected at build time (local.properties, LOCAL_PROPERTIES, or env)
+        // so none of them are committed to this public repository. Empty means "use the public default".
+        def personalProp = { String key -> (properties?.getProperty(key) ?: System.getenv(key) ?: "").trim() }
+        buildConfigField "String", "PERSONAL_PUSH_GATEWAY", "\"" + personalProp("NAGRAM_PUSH_GATEWAY") + "\""
+        buildConfigField "String", "PERSONAL_LIBRETRANSLATE_URL", "\"" + personalProp("NAGRAM_LIBRETRANSLATE_URL") + "\""
+        // Comma-separated domains whose hosts count as your own servers for the translation lock.
+        buildConfigField "String", "PERSONAL_TRUSTED_DOMAINS", "\"" + personalProp("NAGRAM_TRUSTED_DOMAINS") + "\""
         buildConfigField "String", "APP_HASH", "\"" + appHash + "\""
 
         externalNativeBuild {

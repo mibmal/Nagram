@@ -95,7 +95,7 @@ class LLMTranslatorTest {
 
     @Test
     fun recognisesOwnHosts() {
-        assertTrue(LLMTranslator.isOwnHost("llm.maley.me"))
+        assertTrue(LLMTranslator.isOwnHost("llm.example.org", listOf("example.org")))
         assertTrue(LLMTranslator.isOwnHost("192.168.1.20"))
         assertTrue(LLMTranslator.isOwnHost("10.0.0.5"))
         assertTrue(LLMTranslator.isOwnHost("172.20.1.1"))
@@ -106,7 +106,7 @@ class LLMTranslatorTest {
         assertFalse(LLMTranslator.isOwnHost("10.example.com"))
         assertFalse(LLMTranslator.isOwnHost("172.32.0.1"))
         assertFalse(LLMTranslator.isOwnHost("api.openai.com"))
-        assertFalse(LLMTranslator.isOwnHost("notmaley.me"))
+        assertFalse(LLMTranslator.isOwnHost("notexample.org", listOf("example.org")))
     }
 
     @Test

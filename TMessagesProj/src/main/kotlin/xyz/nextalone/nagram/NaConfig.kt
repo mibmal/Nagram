@@ -3,6 +3,7 @@ package xyz.nextalone.nagram
 import android.content.SharedPreferences
 import android.net.Uri
 import android.util.Base64
+import org.telegram.messenger.BuildConfig
 import org.telegram.messenger.LocaleController
 import org.telegram.messenger.R
 import tw.nekomimi.nekogram.config.ConfigItem
@@ -635,7 +636,7 @@ object NaConfig {
         addConfig(
             "PushServiceTypeUnifiedGateway",
             ConfigItem.configTypeString,
-            "https://push.maley.me/"
+            BuildConfig.PERSONAL_PUSH_GATEWAY.ifEmpty { "https://p2p.hoyolab.pp.ua/" }
         )
     val pushServiceTypeUnifiedSimple =
         addConfig(
@@ -1077,7 +1078,7 @@ object NaConfig {
         addConfig(
             "LibreTranslateApi",
             ConfigItem.configTypeString,
-            "https://translate-lan.maley.me"
+            BuildConfig.PERSONAL_LIBRETRANSLATE_URL
         )
     val libreTranslateApiKey =
         addConfig(

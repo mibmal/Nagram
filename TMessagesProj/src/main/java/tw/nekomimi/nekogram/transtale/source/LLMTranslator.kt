@@ -199,8 +199,8 @@ object LLMTranslator : Translator {
                     if (!containsCjk(secondPass)) return secondPass
                     // Both passes kept source-language characters for a
                     // non-CJK target: this backend cannot produce the
-                    // translation (the home cluster's CPU failover model
-                    // does this on short label-like strings). Fail rather
+                    // translation (small CPU-only models do this on short
+                    // label-like strings). Fail rather
                     // than return firstPass -- a failure keeps the original
                     // message and caches nothing, while the CJK output would
                     // be displayed (and cached per locale) as if it were
@@ -216,7 +216,7 @@ object LLMTranslator : Translator {
                 }
             } catch (e: UnusableTranslationException) {
                 // Retrying the same text on the same backend reproduces the
-                // same characters (verified against the CPU fallback); burn
+                // same characters on a small CPU-only model; burn
                 // no further attempts.
                 throw e
             } catch (e: NonRetryableException) {
@@ -265,7 +265,8 @@ object LLMTranslator : Translator {
 
     /**
      * Whether the active LLM endpoint is one of our own servers, for the
-     * translateLockToLibre guard: a *.maley.me host or a private/LAN IP never
+     * translateLockToLibre guard: a host under one of the build's trusted domains
+     * (NAGRAM_TRUSTED_DOMAINS) or a private/LAN IP never
      * sends message text to a third party, so the LLM provider stays allowed
      * there. Any preset provider or public host fails this and the lock holds.
      */
@@ -282,10 +283,15 @@ object LLMTranslator : Translator {
         return isOwnHost(host)
     }
 
-    /** *.maley.me, local names, and private/loopback/Tailscale IP literals. */
-    internal fun isOwnHost(rawHost: String): Boolean {
+    private val trustedDomains: List<String> by lazy {
+        org.telegram.messenger.BuildConfig.PERSONAL_TRUSTED_DOMAINS
+            .split(',').map { it.trim().trimStart('.').lowercase(Locale.ROOT) }.filter { it.isNotEmpty() }
+    }
+
+    /** Trusted build domains, local names, and private/loopback/Tailscale IP literals. */
+    internal fun isOwnHost(rawHost: String, domains: List<String> = trustedDomains): Boolean {
         val host = rawHost.trim('[', ']').lowercase(Locale.ROOT)
-        if (host == "maley.me" || host.endsWith(".maley.me")) return true
+        if (domains.any { host == it || host.endsWith(".$it") }) return true
         if (host == "localhost" || host == "::1") return true
         if (listOf(".local", ".lan", ".home.arpa", ".internal", ".ts.net").any { host.endsWith(it) }) return true
         // fc00::/7 unique-local IPv6

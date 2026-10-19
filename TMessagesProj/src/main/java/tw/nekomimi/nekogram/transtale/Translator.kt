@@ -111,7 +111,7 @@ interface Translator {
             val provider = NekoConfig.translationProvider.Int()
             if (xyz.nextalone.nagram.NaConfig.translateLockToLibre.Bool() && provider != providerLibreTranslate) {
                 // Personal build: never send message text to a third-party translator.
-                // The home LLM bridge is first-party -- the same privacy story as
+                // A self-hosted LLM endpoint is first-party -- the same privacy story as
                 // the self-hosted LibreTranslate -- so the LLM provider passes the
                 // lock, but only while its endpoint is one of our own (see
                 // LLMTranslator.selfHosted).
