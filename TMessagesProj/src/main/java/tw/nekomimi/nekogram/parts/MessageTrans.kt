@@ -22,6 +22,7 @@ import tw.nekomimi.nekogram.NekoConfig
 import tw.nekomimi.nekogram.transtale.TranslateDb
 import tw.nekomimi.nekogram.transtale.Translator
 import tw.nekomimi.nekogram.transtale.code2Locale
+import tw.nekomimi.nekogram.transtale.source.LLMTranslator
 import tw.nekomimi.nekogram.transtale.source.UnusableTranslationException
 import tw.nekomimi.nekogram.utils.AlertUtil
 import tw.nekomimi.nekogram.utils.UIUtil
@@ -49,6 +50,8 @@ private var autoTranslatePausedUntil = 0L
  * Collects the few messages following [message] so that an LLM translator can resolve the
  * pronouns and the context of the sentence being translated.
  */
+private fun isPlainAscii(text: String?): Boolean = text != null && text.all { it.code < 0x80 }
+
 private fun translationContext(message: MessageObject, timeline: List<MessageObject>): List<String> {
     if (NekoConfig.translationProvider.Int() != Translator.providerLLM || !NaConfig.llmUseContext.Bool()) {
         return emptyList()
@@ -91,6 +94,11 @@ fun ChatActivity.translateMessages(
     if (messages.isEmpty() || messages.any { it.translating }) return
     // While the translation server is unreachable, skip background auto-translation instead of failing every message.
     if (autoTranslate && System.currentTimeMillis() < autoTranslatePausedUntil) return
+    // Auto translation sends every message to the provider (no MLKit gate). Text made only of
+    // ASCII cannot need an English translation, and skipping it keeps a local model from
+    // translating every English message, link and number on screen. Cantonese with a Latin
+    // name or an emoji opener still contains CJK characters, so it is not skipped.
+    if (autoTranslate && target.language == "en" && messages.all { isPlainAscii(MessageHelper.getMessagePlainText(it)) }) return
 
     if (messages.all { it.translated }) {
         messages.forEach { clearTranslation(it) }
@@ -223,8 +231,13 @@ internal suspend fun translateWithRetry(
             // failover backend leaving Chinese in an English result); the
             // original message shows instead, and nothing is cached.
             throw e
+        } catch (e: LLMTranslator.NonRetryableException) {
+            throw e
         } catch (e: Exception) {
-            if (++attempt >= 5 || cancel.get()) throw e
+            // The LLM provider already retries inside LLMTranslator; retrying here as well
+            // multiplied every failure into up to 20 requests against the server.
+            val maxAttempts = if (NekoConfig.translationProvider.Int() == Translator.providerLLM) 1 else 5
+            if (++attempt >= maxAttempts || cancel.get()) throw e
             // 1s, 2s, 4s, 8s: gives the network time to come back after the app is resumed
             delay(1000L shl (attempt - 1))
         }

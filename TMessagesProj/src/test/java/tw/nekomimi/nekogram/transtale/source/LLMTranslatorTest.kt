@@ -92,4 +92,29 @@ class LLMTranslatorTest {
         assertEquals("system", anthropic["system"]?.jsonPrimitive?.content)
         assertFalse("temperature" in anthropic)
     }
+
+    @Test
+    fun recognisesOwnHosts() {
+        assertTrue(LLMTranslator.isOwnHost("llm.maley.me"))
+        assertTrue(LLMTranslator.isOwnHost("192.168.1.20"))
+        assertTrue(LLMTranslator.isOwnHost("10.0.0.5"))
+        assertTrue(LLMTranslator.isOwnHost("172.20.1.1"))
+        assertTrue(LLMTranslator.isOwnHost("100.101.2.3"))
+        assertTrue(LLMTranslator.isOwnHost("localhost"))
+        assertTrue(LLMTranslator.isOwnHost("ollama.local"))
+        assertTrue(LLMTranslator.isOwnHost("box.tail1234.ts.net"))
+        assertFalse(LLMTranslator.isOwnHost("10.example.com"))
+        assertFalse(LLMTranslator.isOwnHost("172.32.0.1"))
+        assertFalse(LLMTranslator.isOwnHost("api.openai.com"))
+        assertFalse(LLMTranslator.isOwnHost("notmaley.me"))
+    }
+
+    @Test
+    fun stripsReasoningBlocksFromModelOutput() {
+        assertEquals("Hello", LLMTranslator.cleanModelOutput("<think>\nthe user wants English\n</think>\n\nHello"))
+        assertEquals("Hello", LLMTranslator.cleanModelOutput("  Hello  "))
+        assertEquals(null, LLMTranslator.cleanModelOutput("<think>never finished"))
+        assertEquals(null, LLMTranslator.cleanModelOutput("<think>x</think>   "))
+        assertEquals(null, LLMTranslator.cleanModelOutput(null))
+    }
 }

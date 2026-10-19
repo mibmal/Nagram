@@ -4,6 +4,7 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -51,6 +52,19 @@ object LLMTranslator : Translator {
     private const val MAX_RETRY = 4
     private const val BASE_WAIT = 1000L
     const val DEFAULT_USER_PROMPT = "Translate to @toLang:\n\n@text"
+
+    /** Choices for NaConfig.llmRequestTimeout. A local model on CPU can need well over the client's default 30 s. */
+    @JvmField
+    val REQUEST_TIMEOUT_SECONDS = intArrayOf(30, 60, 120, 300)
+
+    private fun requestTimeoutMillis(): Long =
+        REQUEST_TIMEOUT_SECONDS.getOrElse(NaConfig.llmRequestTimeout.Int()) { 120 } * 1000L
+
+    /** A self-hosted endpoint (Ollama, llama.cpp) usually has no key check; an empty key is fine there. */
+    private fun apiKeyForRequest(): String {
+        updateApiKeys()
+        return if (apiKeys.isEmpty() && selfHosted()) "" else getNextApiKey()
+    }
 
     private val providerUrls = mapOf(
         PROVIDER_OPENAI to "https://api.openai.com/v1",
@@ -103,7 +117,7 @@ object LLMTranslator : Translator {
 
     private fun getNextApiKey(): String {
         updateApiKeys()
-        if (apiKeys.isEmpty()) error("Missing LLM API Keys")
+        if (apiKeys.isEmpty()) throw NonRetryableException("Missing LLM API Keys")
 
         val index = apiKeyIndex.getAndIncrement() % apiKeys.size
         if (apiKeyIndex.get() >= apiKeys.size * 2) {
@@ -152,7 +166,7 @@ object LLMTranslator : Translator {
 
         for (attempt in 0 until MAX_RETRY) {
             try {
-                val apiKey = getNextApiKey()
+                val apiKey = apiKeyForRequest()
                 val firstPass = when (apiFormat) {
                     API_FORMAT_OPENAI_RESPONSE -> doOpenAIResponseTranslate(baseUrl, apiKey, model, systemPrompt, userPrompt, temperature)
                     API_FORMAT_ANTHROPIC -> doAnthropicTranslate(baseUrl, apiKey, model, systemPrompt, userPrompt)
@@ -196,6 +210,18 @@ object LLMTranslator : Translator {
                 // Retrying the same text on the same backend reproduces the
                 // same characters (verified against the CPU fallback); burn
                 // no further attempts.
+                throw e
+            } catch (e: NonRetryableException) {
+                // Wrong key, unknown model, bad request: the same request fails the same way again.
+                throw e
+            } catch (e: NetworkFailureException) {
+                // One retry covers a dropped connection; more would pile work onto a server
+                // that is already timing out (a CPU-bound local model).
+                lastException = e
+                if (attempt == 0) {
+                    delay(BASE_WAIT)
+                    continue
+                }
                 throw e
             } catch (e: Exception) {
                 lastException = e
@@ -245,10 +271,24 @@ object LLMTranslator : Translator {
         } catch (_: Exception) {
             return false
         }
-        if (host.equals("maley.me", true) || host.endsWith(".maley.me", true)) return true
-        // RFC1918 + loopback: the LAN/VPN endpoints.
-        val private = Regex("""^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|localhost$)""")
-        return private.containsMatchIn(host)
+        return isOwnHost(host)
+    }
+
+    /** *.maley.me, local names, and private/loopback/Tailscale IP literals. */
+    internal fun isOwnHost(rawHost: String): Boolean {
+        val host = rawHost.trim('[', ']').lowercase(Locale.ROOT)
+        if (host == "maley.me" || host.endsWith(".maley.me")) return true
+        if (host == "localhost" || host == "::1") return true
+        if (listOf(".local", ".lan", ".home.arpa", ".internal", ".ts.net").any { host.endsWith(it) }) return true
+        // fc00::/7 unique-local IPv6
+        if (host.contains(':')) return host.startsWith("fc") || host.startsWith("fd")
+        val octets = host.split('.').map { it.toIntOrNull() ?: return false }
+        if (octets.size != 4 || octets.any { it !in 0..255 }) return false
+        val (a, b) = octets
+        return a == 10 || a == 127 ||
+            (a == 172 && b in 16..31) ||
+            (a == 192 && b == 168) ||
+            (a == 100 && b in 64..127) // CGNAT range used by Tailscale
     }
 
     private fun calculateBackoff(attempt: Int): Long {
@@ -267,9 +307,10 @@ object LLMTranslator : Translator {
             header("Authorization", "Bearer $apiKey")
             header("Content-Type", "application/json")
             setBody(requestBody.toString())
+            requestTimeout(requestTimeoutMillis())
         }.execute()
 
-        checkResponseStatus(HttpStatusCode(response.statusCode, ""), response.body)
+        checkResponse(response)
 
         val responseJson = Json.parseToJsonElement(response.body).jsonObject
         val choices = responseJson["choices"]?.jsonArray
@@ -279,9 +320,9 @@ object LLMTranslator : Translator {
 
         val firstChoice = choices[0].jsonObject
         val message = firstChoice["message"]?.jsonObject
-        val content = message?.get("content")?.jsonPrimitive?.content
+        val content = message?.get("content")?.let { if (it is JsonNull) null else it.jsonPrimitive.content }
 
-        return content?.trim() ?: throw Exception("No content in response")
+        return cleanModelOutput(content) ?: throw Exception("No content in response")
     }
 
     // --- OpenAI Responses API ---
@@ -294,9 +335,10 @@ object LLMTranslator : Translator {
             header("Authorization", "Bearer $apiKey")
             header("Content-Type", "application/json")
             setBody(requestBody.toString())
+            requestTimeout(requestTimeoutMillis())
         }.execute()
 
-        checkResponseStatus(HttpStatusCode(response.statusCode, ""), response.body)
+        checkResponse(response)
 
         val responseJson = Json.parseToJsonElement(response.body).jsonObject
         val output = responseJson["output"]?.jsonArray
@@ -332,9 +374,10 @@ object LLMTranslator : Translator {
             header("anthropic-version", "2023-06-01")
             header("Content-Type", "application/json")
             setBody(requestBody.toString())
+            requestTimeout(requestTimeoutMillis())
         }.execute()
 
-        checkResponseStatus(HttpStatusCode(response.statusCode, ""), response.body)
+        checkResponse(response)
 
         val responseJson = Json.parseToJsonElement(response.body).jsonObject
         val content = responseJson["content"]?.jsonArray
@@ -363,9 +406,10 @@ object LLMTranslator : Translator {
             header("Authorization", "Bearer $apiKey")
             header("Content-Type", "application/json")
             setBody(requestBody.toString())
+            requestTimeout(requestTimeoutMillis())
         }.execute()
 
-        checkResponseStatus(HttpStatusCode(response.statusCode, ""), response.body)
+        checkResponse(response)
 
         val responseJson = Json.parseToJsonElement(response.body).jsonObject
         val choices = responseJson["choices"]?.jsonArray
@@ -375,9 +419,9 @@ object LLMTranslator : Translator {
 
         val firstChoice = choices[0].jsonObject
         val message = firstChoice["message"]?.jsonObject
-        val content = message?.get("content")?.jsonPrimitive?.content
+        val content = message?.get("content")?.let { if (it is JsonNull) null else it.jsonPrimitive.content }
 
-        return content?.trim() ?: throw Exception("No content in response")
+        return cleanModelOutput(content) ?: throw Exception("No content in response")
     }
 
     // --- Helpers ---
@@ -442,6 +486,15 @@ object LLMTranslator : Translator {
         })
     }
 
+    private fun checkResponse(response: xyz.nextalone.nagram.network.NetworkResponse) {
+        if (response.statusCode == 0) {
+            // No HTTP response at all: timeout, refused connection, DNS, TLS. Keep the reason
+            // instead of the bare "HTTP 0" the user used to see.
+            throw NetworkFailureException("Can't reach the translation server: " + (response.error ?: "no response"))
+        }
+        checkResponseStatus(HttpStatusCode(response.statusCode, ""), response.body)
+    }
+
     private fun checkResponseStatus(status: HttpStatusCode, responseBody: String) {
         if (status == HttpStatusCode.TooManyRequests) {
             throw RateLimitException("LLM API rate limit exceeded")
@@ -453,6 +506,8 @@ object LLMTranslator : Translator {
             } catch (_: Exception) {
                 "HTTP ${status.value}: ${status.description}"
             }
+            // 4xx other than timeout/rate limit means the request itself is wrong.
+            if (status.value in 400..499 && status.value != 408) throw NonRetryableException(errorMsg)
             throw Exception(errorMsg)
         }
     }
@@ -549,7 +604,7 @@ object LLMTranslator : Translator {
         val model = NaConfig.llmVisionModel.String()?.takeIf { !it.isBlank() } ?: getModel(provider)
         // A self-hosted endpoint (Ollama & co) serves no key check; demanding one
         // would turn every vision call into a fallback to the on-device OCR.
-        val apiKey = if (selfHosted()) "" else getNextApiKey()
+        val apiKey = apiKeyForRequest()
         val language = getLanguageName(to.language)
 
         val requestBody = buildJsonObject {
@@ -582,9 +637,10 @@ object LLMTranslator : Translator {
             header("Authorization", "Bearer $apiKey")
             header("Content-Type", "application/json")
             setBody(requestBody.toString())
+            requestTimeout(requestTimeoutMillis())
         }.execute()
 
-        checkResponseStatus(HttpStatusCode(response.statusCode, ""), response.body)
+        checkResponse(response)
         val responseJson = Json.parseToJsonElement(response.body).jsonObject
         val choices = responseJson["choices"]?.jsonArray
         if (choices.isNullOrEmpty()) {
@@ -687,4 +743,20 @@ object LLMTranslator : Translator {
     fun getDefaultModel(provider: Int): String? = providerModels[provider]
 
     private class RateLimitException(message: String) : Exception(message)
+
+    class NonRetryableException(message: String) : Exception(message)
+
+    class NetworkFailureException(message: String) : Exception(message)
+
+    private val THINK_BLOCK = Regex("(?s)<think>.*?</think>")
+
+    /** Reasoning models served locally (qwen3, deepseek-r1) prefix their answer with a <think> block. */
+    internal fun cleanModelOutput(content: String?): String? {
+        if (content == null) return null
+        var text = THINK_BLOCK.replace(content, "")
+        // An unterminated block means the model ran out of tokens mid-thought: there is no answer.
+        if (text.contains("<think>")) return null
+        text = text.trim()
+        return text.ifEmpty { null }
+    }
 }

@@ -1291,6 +1291,12 @@ object NaConfig {
             ConfigItem.configTypeString,
             "0.7"
         )
+    val llmRequestTimeout =
+        addConfig(
+            "LLMRequestTimeout",
+            ConfigItem.configTypeInt,
+            2 // index into LLMTranslator.REQUEST_TIMEOUT_SECONDS: 30, 60, 120, 300
+        )
     val mainTabsStyle =
         addConfig(
             "MainTabsStyle",

@@ -541,6 +541,7 @@ public class AlertsCreator {
             } else if (error.text.equals("USERS_TOO_MUCH")) {
                 showSimpleAlert(fragment, LocaleController.getString(R.string.JoinToGroupErrorFull));
             } else if (error.text.equals("CHANNELS_TOO_MUCH")) {
+                tw.nekomimi.nekogram.JoinFailureLog.record(currentAccount, request);
                 if (fragment.getParentActivity() != null) {
                     fragment.showDialog(new LimitReachedBottomSheet(fragment, fragment.getParentActivity(), LimitReachedBottomSheet.TYPE_TO0_MANY_COMMUNITIES, currentAccount, null));
                 } else {

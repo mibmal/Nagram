@@ -439,4 +439,5 @@
     <string name="ClearKeptMessageHistoryDone">Kept message history cleared</string>
     <string name="EditHistory">Edit history</string>
     <string name="EditHistoryCurrent">Current</string>
+    <string name="LLMRequestTimeout">Request timeout</string>
 </resources>

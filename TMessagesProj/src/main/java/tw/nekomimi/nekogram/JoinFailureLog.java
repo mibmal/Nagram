@@ -43,6 +43,10 @@ public class JoinFailureLog {
                     }
                 }
             }
+            if (request instanceof TLRPC.TL_messages_importChatInvite) {
+                String hash = ((TLRPC.TL_messages_importChatInvite) request).hash;
+                peer = " -> invite link" + (hash != null && hash.length() > 4 ? " …" + hash.substring(hash.length() - 4) : "");
+            }
             String when = new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date());
             last = method + " on account " + currentAccount + " (phone " + phone + ")" + peer + " at " + when;
             FileLog.e("[JoinFailureLog] CHANNELS_TOO_MUCH: " + last);

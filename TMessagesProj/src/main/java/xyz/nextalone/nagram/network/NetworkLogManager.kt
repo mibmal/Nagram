@@ -1,5 +1,6 @@
 package xyz.nextalone.nagram.network
 
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.head
@@ -140,6 +141,13 @@ class NetworkRequestBuilder(
     private var contentType: ContentType? = null
 ) {
     private var onCompleteCallback: (suspend () -> Unit)? = null
+    private var timeoutMillis: Long? = null
+
+    /** Overrides the client's default 30 s request/socket timeout for this request (e.g. a slow local LLM). */
+    fun requestTimeout(millis: Long): NetworkRequestBuilder {
+        this.timeoutMillis = millis
+        return this
+    }
 
     fun url(url: String): NetworkRequestBuilder {
         this.url = url
@@ -319,6 +327,12 @@ class NetworkRequestBuilder(
     }
 
     private fun io.ktor.client.request.HttpRequestBuilder.applyHeadersAndParams() {
+        timeoutMillis?.let { millis ->
+            timeout {
+                requestTimeoutMillis = millis
+                socketTimeoutMillis = millis
+            }
+        }
         headersMap.forEach { (key, value) ->
             header(key, value)
         }

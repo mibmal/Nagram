@@ -76,6 +76,12 @@ public class NekoLLMSettingsActivity extends BaseNekoXSettingsActivity {
     private final AbstractConfigCell llmTranslationPromptRow = cellGroup.appendCell(new ConfigCellTextInput(null, NaConfig.INSTANCE.getLlmTranslationPrompt(), LocaleController.getString("LLMTranslationPromptNotice", R.string.LLMTranslationPromptNotice) + "\n\n" + LLMTranslator.DEFAULT_USER_PROMPT, null));
     private final AbstractConfigCell llmUseContextRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getLlmUseContext(), LocaleController.getString("LLMUseContextNotice", R.string.LLMUseContextNotice)));
     private final AbstractConfigCell llmTemperatureRow = cellGroup.appendCell(new ConfigCellCustom("LLMTemperature", CellGroup.ITEM_TYPE_TEXT_SETTINGS_CELL, true));
+    private final AbstractConfigCell llmRequestTimeoutRow = cellGroup.appendCell(new ConfigCellSelectBox(null, NaConfig.INSTANCE.getLlmRequestTimeout(), new String[]{
+            LocaleController.formatPluralString("Seconds", 30),
+            LocaleController.formatPluralString("Minutes", 1),
+            LocaleController.formatPluralString("Minutes", 2),
+            LocaleController.formatPluralString("Minutes", 5),
+    }, null));
     private final AbstractConfigCell dividerAdvanced = cellGroup.appendCell(new ConfigCellDivider());
 
     // --- Test section ---
